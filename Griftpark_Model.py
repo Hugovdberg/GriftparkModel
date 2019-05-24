@@ -7,10 +7,7 @@ import gstools  # GeoStat-tools
 import matplotlib.path as mpth
 import matplotlib.pyplot as plt  # Plotting
 import numpy as np  # Numeric array manipulation
-import rasterio.features as rf
-import rasterio.transform as rtf
 import scipy.ndimage as si  # Numpy array manipulation
-import shapefile as shp  # ESRI Shapefile manipulation - pip install pyshp
 
 import config
 from utils import (
@@ -25,8 +22,8 @@ def run_flow_model():
     top = layer_boundaries[0]
     bottoms = np.hstack(
         [
-            np.linspace(u, l, n_sublayers + 1)[1:]
-            for u, l in zip(layer_boundaries[:-1], layer_boundaries[1:])
+            np.linspace(u, l, n + 1)[1:]
+            for u, l, n in zip(layer_boundaries[:-1], layer_boundaries[1:], n_sublayers)
         ]
     )
 
@@ -57,6 +54,8 @@ def run_flow_model():
         nrow=n_rows,
         ncol=n_cols,
         nper=n_stress_periods,
+        itmuni=4,
+        lenuni=2,
         delr=col_width,
         delc=row_height,
         top=top,
@@ -67,57 +66,44 @@ def run_flow_model():
         steady=stress_periods_["steady_state"],
         xul=model_extent["X"][0],
         yul=model_extent["Y"][1],
-        proj4_str="EPSG:28992",
+        proj4_str="+init=epsg:28992",
     )
 
     # # Get node coordinates and volumes for random field generation.
-    # node_y, node_x, node_z = dis.get_node_coordinates()
-    # node_vol = dis.get_cell_volumes()
-    # node_x, node_y = np.meshgrid(node_x, node_y)
-    # node_x = np.tile(node_x, (len(node_z), 1, 1))
-    # node_y = np.tile(node_y, (len(node_z), 1, 1))
-    # node_x.shape, node_y.shape, node_z.shape, node_vol.shape
-    # node_x_world = model_extent["X"][0] + node_x
-    # node_y_world = model_extent["Y"][0] + node_y
-
-    # # Get locations of isohead contours on the model grid to fix constant heads
-    # east_l2 = node_y_world[0] < (
-    #     458170 + (node_x_world[0] - 136613) * (455529 - 458170) / (137238 - 136613)
-    # )
-    # idx_east_l2 = (
-    #     east_l2 & (~si.binary_erosion(east_l2, structure=np.ones((1, 3)))).astype(int)
-    # )[:, 1:].argmax(axis=1) + 1
-
-    # west_l2 = node_y_world[0] < (
-    #     455522 + (node_x_world[0] - 137947) * (458167 - 455522) / (137960 - 137947)
-    # )
-    # idx_west_l2 = (
-    #     west_l2 & (~si.binary_erosion(west_l2, structure=np.ones((1, 3)))).astype(int)
-    # )[:, 1:].argmax(axis=1) + 1
+    _, _, node_z = dis.get_node_coordinates()
+    node_vol = dis.get_cell_volumes()
+    node_x = np.tile(x, (len(node_z), 1, 1))
+    node_y = np.tile(y, (len(node_z), 1, 1))
 
     # Setup the IBOUND and STRT arrays
-    ibound = np.ones(dis.botm.shape, dtype=np.int)
-    init_head = np.zeros(dis.botm.shape, dtype=np.float)
+    ibound = np.ones((dis.nlay, dis.nrow, dis.ncol), dtype=np.int)
+    init_head = np.zeros_like(ibound, dtype=np.float)
+    horizontal_conductivity = np.empty_like(init_head)
+    vertical_conductivity = np.empty_like(init_head)
 
-    ibound[:5] = ibounds[0]
-    # ibound[:5][const_heads[0]] = -1
-    ibound[5:] = ibounds[1]
-    # ibound[5:][const_heads[1]] = -1
-    # # Disable everything outside the isohead contours
-    # ibound[5:, east_l2] = 0
-    # ibound[5:, west_l2] = 0
-    # # Set the isohead contours themselves as constant head lines
+    horizontal_conductivity[:] = (
+        kh_buiten[:, np.newaxis, np.newaxis] * ~inside_wall[np.newaxis, :]
+    )
+    horizontal_conductivity += (
+        kh_park[:, np.newaxis, np.newaxis] * inside_wall[np.newaxis, :]
+    )
+    vertical_conductivity[:] = (
+        kv_buiten[:, np.newaxis, np.newaxis] * ~inside_wall[np.newaxis, :]
+    )
+    vertical_conductivity += (
+        kv_park[:, np.newaxis, np.newaxis] * inside_wall[np.newaxis, :]
+    )
+
+    ibound = ibounds[(wvp - 1)].astype(np.int)
+    # Set the isohead contours themselves as constant head lines
     for r, c in zip(*np.where(const_heads[0])):
-        ibound[:5, r, c] = -1
-        if y[r, c] < 456900:
-            init_head[:5, r, c] = 0.25
+        ibound[0, r, c] = -1
+        if y[r, c] < 456_750:
+            init_head[0, r, c] = 0.25
     for r, c in zip(*np.where(const_heads[1])):
-        ibound[5:, r, c] = -1
-        if x[r, c] < 137500:
-            init_head[5:, r, c] = -50.25
-    # for r, c in enumerate(idx_west_l2):
-    #     ibound[5:, r, c] = -1
-    #     init_head[5:, r, c] = 0
+        ibound[-1, r, c] = -1
+        if x[r, c] < 137_600:
+            init_head[-1, r, c] = -0.25
 
     # Setup the basic flow (BAS package)
     bas = flopy.modflow.ModflowBas(model=mf, ibound=ibound, strt=init_head)
@@ -131,18 +117,20 @@ def run_flow_model():
     # srf_layer_2 = gstools.SRF(model=model_layer_2, mean=35, upscaling="coarse_graining")
 
     # field_layer_1 = srf_layer_1(
-    #     pos=(node_x[:5].flatten(), node_y[:5].flatten(), node_z[:5].flatten()),
+    #     pos=(node_x[:5].ravel(), node_y[:5].ravel(), node_z[:5].ravel()),
     #     seed=seed(),
-    #     point_volumes=node_vol[:5].flatten(),
+    #     point_volumes=node_vol[:5].ravel(),
     # )
     # field_layer_1 = np.reshape(field_layer_1, node_x[:5].shape)
     # field_layer_2 = srf_layer_2(
-    #     pos=(node_x[5:].flatten(), node_y[5:].flatten(), node_z[5:].flatten()),
+    #     pos=(node_x[5:].ravel(), node_y[5:].ravel(), node_z[5:].ravel()),
     #     seed=seed(),
-    #     point_volumes=node_vol[5:].flatten(),
+    #     point_volumes=node_vol[5:].ravel(),
     # )
     # field_layer_2 = np.reshape(field_layer_1, node_x[5:].shape)
-    horizontal_conductivity = 40
+    horizontal_conductivity = np.ones((dis.nlay, dis.nrow, dis.ncol)) * 40
+    horizontal_conductivity[4, :, :] = 4
+    horizontal_conductivity[5:, :, :] = 60
     # horizontal_conductivity[:5] = field_layer_1
     # horizontal_conductivity[5:] = field_layer_2
     # Set vertical conductivity to one tenth of the horizontal conductivity in
@@ -155,6 +143,14 @@ def run_flow_model():
     )
 
     hfb = flopy.modflow.ModflowHfb(model=mf, nphfb=0, nacthfb=0, hfb_data=hfb_data)
+
+    welldata = flopy.modflow.ModflowWel.get_empty(ncells=len(wells))
+    for w, well in enumerate(wells):
+        welldata[w]["i"], welldata[w]["j"] = dis.get_rc_from_node_coordinates(
+            *well, local=False
+        )
+        welldata[w]["k"] = dis.get_layer(welldata[w]["i"], welldata[w]["j"], -10)
+        welldata[w]["flux"] = -1  # -1500
 
     wel = flopy.modflow.ModflowWel(model=mf, stress_period_data={0: welldata})
 
@@ -170,6 +166,7 @@ def run_flow_model():
         for s in range(sp["n_steps"])
     }
     oc = flopy.modflow.ModflowOc(model=mf, stress_period_data=oc_spd)
+    oc.reset_budgetunit()
 
     # Setup MODFLOW solver (Preconditioned Conjugate-Gradient, PCG package)
     solver = flopy.modflow.ModflowPcg(model=mf)
@@ -185,8 +182,13 @@ def run_flow_model():
 modelname = "Griftpark"
 model_workspace = Path(modelname)
 
-layer_boundaries = [0, -20, -60]
-n_sublayers = 5
+layer_boundaries = [2.5, -2.5, -7.5, -32.5, -50, -60, -100]
+n_sublayers = [1, 2, 10, 7, 4, 5]
+wvp = np.repeat([1, 1, 1, 1, 2, 2], n_sublayers)
+kh_park = np.repeat([10, 20, 80, 40, 1e-6, 50], n_sublayers)
+kh_buiten = np.repeat([1, 20, 80, 40, 1e-6, 50], n_sublayers)
+kv_park = np.repeat([1, 2, 8, 4, 0.1, 5], n_sublayers)
+kv_buiten = np.repeat([0.1, 2, 8, 4, 0.005, 5], n_sublayers)
 
 x_zones = [136600, 137000, 137090, 137350, 137450, 138000]
 ncol_zones = [8, 9, 52, 10, 11]
@@ -194,11 +196,10 @@ y_zones = [455600, 456550, 456670, 457170, 457250, 458200]
 nrow_zones = [19, 12, 100, 8, 19]
 
 model_extent = np.array(
-    [(136600, 455600), (138000, 458200)], dtype=[("X", np.float), ("Y", np.float)]
+    [(min(x_zones), min(y_zones)), (max(x_zones), max(y_zones))],
+    dtype=[("X", np.float), ("Y", np.float)],
 )
 
-# nrow, ncol = 100, 100
-# x_vertices = np.linspace(*model_extent["X"], ncol + 1)
 x_vertices = np.unique(
     np.hstack(
         [
@@ -217,7 +218,6 @@ y_vertices = np.unique(
         ]
     )
 )[::-1]
-# y_vertices = np.linspace(*model_extent["Y"][::-1], nrow + 1)
 row_height = -np.diff(y_vertices)
 y = y_vertices[1:] + row_height / 2
 x, y = np.meshgrid(x, y)
@@ -238,12 +238,10 @@ ibounds = np.ones((len(aquifers), *x.shape), dtype=np.bool)
 const_heads = np.ones((len(aquifers), *x.shape), dtype=np.bool)
 for ia, aq in enumerate(aquifers):
     aq_path = mpth.Path(aq["geometry"]["coordinates"][0])
-    inside_aq = aq_path.contains_points(np.vstack((x.flatten(), y.flatten())).T)
+    inside_aq = aq_path.contains_points(np.vstack((x.ravel(), y.ravel())).T)
     inside_aq = np.reshape(inside_aq, x.shape)
     ibounds[ia] = inside_aq
     const_heads[ia] = ~inside_aq & ~si.binary_erosion(~inside_aq, border_value=False)
-# ibounds
-
 
 seed = gstools.random.MasterRNG(20190517)
 
@@ -251,21 +249,15 @@ seed = gstools.random.MasterRNG(20190517)
 with fiona.open("data/location_wells.shp", "r") as wellshp:
     wells = [f["geometry"]["coordinates"] for f in wellshp]
 
-welldata = flopy.modflow.ModflowWel.get_empty(ncells=len(wells))
-for w, well in enumerate(wells):
-    welldata[w]["i"] = np.abs(y[:, 0] - well[1]).argmin()
-    welldata[w]["j"] = np.abs(x[0, :] - well[0]).argmin()
-    welldata[w]["k"] = 0
-    welldata[w]["flux"] = -1500
 
 with fiona.open("data/resistive_wall.shp", "r") as shapefile:
     wall = [f["geometry"] for f in shapefile]
 
 wall_path = mpth.Path(wall[0]["coordinates"][0])
-inside_wall = wall_path.contains_points(np.vstack((x.flatten(), y.flatten())).T)
-mask = np.reshape(inside_wall, x.shape)
+inside_wall = wall_path.contains_points(np.vstack((x.ravel(), y.ravel())).T)
+inside_wall = np.reshape(inside_wall, x.shape)
 
-wall_mask = mask & ~si.binary_erosion(mask, border_value=False)
+wall_mask = inside_wall & ~si.binary_erosion(inside_wall, border_value=False)
 wall_mask_row, wall_mask_col = np.where(wall_mask)
 
 hfb_conductance = 1e-7
@@ -293,53 +285,47 @@ mf = run_flow_model()
 
 hds_file = flopy.utils.HeadFile(model_workspace / f"{modelname}.hds")
 heads = hds_file.get_data()
+cbc_file = flopy.utils.CellBudgetFile(model_workspace / f"{modelname}.cbc")
+frf = cbc_file.get_data(text="FLOW RIGHT FACE")[0]
+fff = cbc_file.get_data(text="FLOW FRONT FACE")[0]
+flf = cbc_file.get_data(text="FLOW LOWER FACE")[0]
 
-fig, ax = plt.subplots(figsize=(16, 10))
+
+fig, ax = plt.subplots(figsize=(16, 16))
+ilay = 0
+ax.set_title(f"Layer {ilay+1}")
 ax.set_aspect(1)
 extent = None
 # extent = [137000, 137400, 456600, 457400]  # Wall
 # extent = [137150, 137300, 456900, 457150]  # Wells
-pmv = flopy.plot.PlotMapView(model=mf, ax=ax, layer=5, extent=extent)
+pmv = flopy.plot.PlotMapView(model=mf, ax=ax, layer=ilay, extent=extent)
 pmv.plot_grid(linewidths=1, alpha=0.5)
-c = pmv.plot_array(heads, masked_values=[-999.99])
-# c = pmv.plot_array(ibounds[1].astype(int) + const_heads[1].astype(int))
-plt.colorbar(c)
-for contour in contours_h1:
-    points = np.array(contour["geometry"]["coordinates"])
-    ax.plot(points[:, 0], points[:, 1], "--", color="k")
-for contour in contours_h2:
-    points = np.array(contour["geometry"]["coordinates"])
-    ax.plot(points[:, 0], points[:, 1], "-.", color="k")
-pmv.plot_bc("WEL")
+# c = pmv.plot_array(heads, alpha=1, masked_values=[-999.99])
+c = pmv.plot_array(ibounds[1].astype(int))  # + const_heads[1].astype(int))
+plt.colorbar(c, ax=ax)
+quiver = pmv.plot_discharge(
+    frf=frf, fff=fff, flf=flf, head=heads, color="#ffffff", istep=3, jstep=3
+)
+# for contour in contours_h1:
+#     points = np.array(contour["geometry"]["coordinates"])
+#     ax.plot(points[:, 0], points[:, 1], "--", color="k")
+# for contour in contours_h2:
+#     points = np.array(contour["geometry"]["coordinates"])
+#     ax.plot(points[:, 0], points[:, 1], "-.", color="k")
+pmv.plot_bc("WEL", plotAll=True)
 # pmv.plot_ibound()
 # pmv.plot_bc("HFB6")
 # pmv.plot_shapefile("data/aquifers.shp")
-pmv.plot_shapefile("data/resistive_wall.shp", alpha=1, facecolor="None")
+# pmv.plot_shapefile("data/resistive_wall.shp", alpha=1, facecolor="None")
 pmv.plot_shapefile("data/location_wells.shp", radius=1, edgecolor="blue", facecolor="b")
 
-# dis = mf.get_package("DIS")
-# x, y, z = dis.get_node_coordinates()
-# dis = mf.dis
-# dis.get
-
-# flopy.discretization.structuredgrid.StructuredGrid
-
-cells = []
-for ix, x0 in enumerate(x_vertices[:-1]):
-    x1 = x_vertices[ix + 1]
-    for iy, y0 in enumerate(y_vertices[:-1]):
-        y1 = y_vertices[iy + 1]
-        cells.append(mpth.Path(np.array([[x0, y0], [x1, y0], [x1, y1], [x0, y1]])))
-
-
-with fiona.open("data/location_wells.shp", "r") as wellshp:
-    wells = [
-        (
-            # f,
-            mf.dis.get_rc_from_node_coordinates(
-                *mf.modelgrid.get_local_coords(*f["geometry"]["coordinates"])
-            ),
-        )
-        for f in wellshp
-    ]
-    wellc = [f["geometry"]["coordinates"] for f in wellshp]
+fig, ax = plt.subplots(figsize=(10, 8))
+ax.set_aspect(10)
+# row=72, column=51
+pxs = flopy.plot.PlotCrossSection(model=mf, ax=ax, line={"column": 51})
+pxs.plot_grid(linewidths=0.5, alpha=0.5)
+# pxs.plot_bc("WEL")
+# c = pxs.plot_array(heads, head=heads, masked_values=[-999.99])
+# plt.colorbar(c, ax=ax)
+pxs.plot_ibound(color_noflow="#aaaaaa")
+quiver = pxs.plot_discharge(frf=frf, fff=fff, flf=flf, head=heads, color="#ffffff")
