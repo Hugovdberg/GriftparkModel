@@ -1,0 +1,27 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+numpy = "*"
+scipy = "*"
+pandas = "*"
+gstools = {git = "https://github.com/GeoStat-Framework/GSTools.git"}
+jupyterlab = "*"
+flopy = "*"
+matplotlib = "*"
+cython = "*"
+pyshp = "*"
+rasterio = "*"
+fiona = "*"
+"0ad8891" = {file = "https://github.com/modflowpy/pymake/zipball/master"}
+requests = "*"
+descartes = "*"
+
+[dev-packages]
+pylint = "*"
+black = "*"
+
+[requires]
+python_version = "3.7"

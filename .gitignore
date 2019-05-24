@@ -1,0 +1,14 @@
+__pycache__/
+.ipynb_checkpoints/
+.vscode/
+
+bin/linux/
+bin/mac/
+bin/win32/
+bin/win64/
+
+backup/
+Griftpark/
+reports/
+
+*.qgs~
