@@ -10,5 +10,6 @@ bin/win64/
 backup/
 Griftpark/
 reports/
+output/
 
 *.qgs~

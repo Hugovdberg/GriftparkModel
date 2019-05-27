@@ -181,6 +181,9 @@ def run_flow_model():
 # Name and location
 modelname = "Griftpark"
 model_workspace = Path(modelname)
+model_output_dir = Path("output")
+if not model_output_dir.exists():
+    model_output_dir.mkdir()
 
 layer_boundaries = [2.5, -2.5, -7.5, -32.5, -50, -60, -100]
 n_sublayers = [1, 2, 10, 7, 4, 5]
@@ -301,7 +304,7 @@ extent = None
 pmv = flopy.plot.PlotMapView(model=mf, ax=ax, layer=ilay, extent=extent)
 pmv.plot_grid(linewidths=1, alpha=0.5)
 # c = pmv.plot_array(heads, alpha=1, masked_values=[-999.99])
-c = pmv.plot_array(ibounds[1].astype(int))  # + const_heads[1].astype(int))
+c = pmv.plot_array(ibounds[0].astype(int))  # + const_heads[1].astype(int))
 plt.colorbar(c, ax=ax)
 quiver = pmv.plot_discharge(
     frf=frf, fff=fff, flf=flf, head=heads, color="#ffffff", istep=3, jstep=3
@@ -319,13 +322,19 @@ pmv.plot_bc("WEL", plotAll=True)
 # pmv.plot_shapefile("data/resistive_wall.shp", alpha=1, facecolor="None")
 pmv.plot_shapefile("data/location_wells.shp", radius=1, edgecolor="blue", facecolor="b")
 
-fig, ax = plt.subplots(figsize=(10, 8))
-ax.set_aspect(10)
+fig, ax = plt.subplots(figsize=(16, 8))
+# ax.set_aspect(15)
 # row=72, column=51
-pxs = flopy.plot.PlotCrossSection(model=mf, ax=ax, line={"column": 51})
+pxs = flopy.plot.PlotCrossSection(
+    model=mf, ax=ax, line={"column": 51}, extent=(1100, 1400, -80, -30)
+)
 pxs.plot_grid(linewidths=0.5, alpha=0.5)
 # pxs.plot_bc("WEL")
-# c = pxs.plot_array(heads, head=heads, masked_values=[-999.99])
-# plt.colorbar(c, ax=ax)
-pxs.plot_ibound(color_noflow="#aaaaaa")
-quiver = pxs.plot_discharge(frf=frf, fff=fff, flf=flf, head=heads, color="#ffffff")
+c = pxs.plot_array(heads, head=heads, vmin=-0.125, vmax=0.025)
+plt.colorbar(c, ax=ax)
+# pxs.plot_ibound(color_noflow="#aaaaaa", head=heads)
+quiver = pxs.plot_discharge(
+    frf=frf, fff=fff, flf=flf, head=heads, color="#ffffff", normalize=False
+)
+fig.tight_layout()
+fig.savefig(model_output_dir / "crosssection.png")
