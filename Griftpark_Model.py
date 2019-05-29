@@ -146,15 +146,31 @@ def run_flow_model():
 
     hfb = flopy.modflow.ModflowHfb(model=mf, nphfb=0, nacthfb=0, hfb_data=hfb_data)
 
-    welldata = flopy.modflow.ModflowWel.get_empty(ncells=len(wells))
-    for w, well in enumerate(wells):
-        welldata[w]["i"], welldata[w]["j"] = dis.get_rc_from_node_coordinates(
-            *well, local=False
+    welldata = flopy.modflow.ModflowWel.get_empty(ncells=len(wells) * dis.nlay)
+    wellflux = -10 * 24 / len(wells)
+    w = 0
+    z_top = -21
+    z_bot = -43
+    for well in wells:
+        r, c = dis.get_rc_from_node_coordinates(*well, local=False)
+        l_top = dis.get_layer(r, c, z_top)
+        l_bot = dis.get_layer(r, c, z_bot)
+        kD = np.array(
+            [
+                horizontal_conductivity[l, r, c]
+                * (min(dis.botm[l - 1, r, c], z_top) - max(dis.botm[l, r, c], z_bot))
+                for l in range(l_top, l_bot + 1)
+            ]
         )
-        welldata[w]["k"] = dis.get_layer(welldata[w]["i"], welldata[w]["j"], -10)
-        welldata[w]["flux"] = -1  # -1500
-
-    wel = flopy.modflow.ModflowWel(model=mf, stress_period_data={0: welldata})
+        for il, l in enumerate(range(l_top, l_bot + 1)):
+            welldata[w]["k"] = l
+            welldata[w]["i"] = r
+            welldata[w]["j"] = c
+            welldata[w]["flux"] = wellflux * kD[il] / kD.sum()
+            w += 1
+    welldata = welldata[:w]
+    first_year = np.where(nov.index == 1990)[0][0]
+    wel = flopy.modflow.ModflowWel(model=mf, stress_period_data={first_year: welldata})
 
     # Setup recharge (RCH package) using a time dependent recharge rate.
     # Add recharge only to active cells of the top aquifer
