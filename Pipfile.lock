@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "12ecee4c943ff62b97a59c43e089ac76cbeeca332843c7f0a532d98c64dcfce8"
+            "sha256": "39f983a7c36db7f37111297238505d160ac0128e4d39fb4c8dedd9e5fca7fa2c"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -16,6 +16,9 @@
         ]
     },
     "default": {
+        "0ad8891": {
+            "file": "https://github.com/modflowpy/pymake/zipball/master"
+        },
         "affine": {
             "hashes": [
                 "sha256:e5970e2e53edd75fee60eb2550df365a1c3a58d78755e9e5164e345ac36df322",
@@ -43,6 +46,20 @@
                 "sha256:3fdf7f77adcf649c9911387df51254b813185e32b2c6619f690b593a617e19fa"
             ],
             "version": "==3.1.0"
+        },
+        "certifi": {
+            "hashes": [
+                "sha256:59b7658e26ca9c7339e00f8f4636cdfe59d34fa37b9b04f6f9e9926b3cece1a5",
+                "sha256:b26104d6835d1f5e49452a26eb2ff87fe7090b89dfcaee5ea2212697e1e1d7ae"
+            ],
+            "version": "==2019.3.9"
+        },
+        "chardet": {
+            "hashes": [
+                "sha256:84ab92ed1c4d4f16916e05906b6b75a6c0fb5db821cc65e70cbd64a3e2a5eaae",
+                "sha256:fc323ffcaeaed0e0a02bf4d117757b98aed530d9ed4531e3e15460124c106691"
+            ],
+            "version": "==3.0.4"
         },
         "click": {
             "hashes": [
@@ -121,6 +138,15 @@
             ],
             "version": "==0.6.0"
         },
+        "descartes": {
+            "hashes": [
+                "sha256:135a502146af5ed6ff359975e2ebc5fa4b71b5432c355c2cafdc6dea1337035b",
+                "sha256:4c62dc41109689d03e4b35de0a2bcbdeeb81047badc607c4415d5c753bd683af",
+                "sha256:b7e412e7e6e294412f1d0f661f187babc970088c2456089e6801eebb043c2e1b"
+            ],
+            "index": "pypi",
+            "version": "==1.1.0"
+        },
         "entrypoints": {
             "hashes": [
                 "sha256:589f874b313739ad35be6e0cd7efde2a4e9b6fea91edcc34e58ecbb8dbe56d19",
@@ -128,16 +154,37 @@
             ],
             "version": "==0.3"
         },
-        "flopy": {
+        "fiona": {
             "hashes": [
-                "sha256:77dc7c7a45493f3ba937b71a5d7411ed2475f93c3b7973f80f8757a9d836f4ae"
+                "sha256:1353a0c7d03f96b0755d13bc0277b0b6a79585f94981e1ae6452c55958431b2b",
+                "sha256:1783c3abceccca318fac3d5bfd4305bc31c94fbb5abdc60e96b0ccedaa263857",
+                "sha256:22dfc9d82adae78567b2a242f297915aeb7727cde06a3d762252e5393af959c5",
+                "sha256:2e1ba6e87f9a63962af4c4c44152f9f49245c29fd90ce1c4bb19bddbb31e22f4",
+                "sha256:6c2b665ad369768cde426def664a9af46263152731b4a9493380a337f6c5a79e",
+                "sha256:7ebfdce0be685aa44c31529d57cdea232c2386ad305c11a329f91c7613dbd2f4",
+                "sha256:8e361b3cf00a472570fdd25ad39c722f1b3fda03fc4de1d35aac2b5da39bcdb3",
+                "sha256:cb9081003e8585a284365b28cff61343541405263fd4e1c79f3baec7321b8b3f",
+                "sha256:e3bfabe62c4081c88c47aa10c6165ecfefaa7c9aa5406496b75ff364757a0bbe",
+                "sha256:ee2bbe5640f68342b6746a0ba733e25ee221106368558be6cd73dd08fc6fbe04",
+                "sha256:fa31dfe8855b9cd0b128b47a4df558f1b8eda90d2181bff1dd9854e5556efb3e"
             ],
             "index": "pypi",
-            "version": "==3.2.11"
+            "version": "==1.8.6"
+        },
+        "flopy": {
+            "git": "https://github.com/modflowpy/flopy.git",
+            "ref": "2cfd25bb04fd30e5f686d99cafcc547e0894825e"
         },
         "gstools": {
             "git": "https://github.com/GeoStat-Framework/GSTools.git",
-            "ref": "44a71f59bced1e2deeca0ac78eb9813b123d437a"
+            "ref": "29f7f1b029866379ce881f44765f72534d757fae"
+        },
+        "idna": {
+            "hashes": [
+                "sha256:c357b3f628cf53ae2c4c05627ecc484553142ca23264e593d327bcde5e9c3407",
+                "sha256:ea8b7f6188e6fa117537c3df7da9fc686d485087abf6ac197f9c46432f7e4a3c"
+            ],
+            "version": "==2.8"
         },
         "ipykernel": {
             "hashes": [
@@ -298,6 +345,12 @@
             ],
             "version": "==0.8.4"
         },
+        "munch": {
+            "hashes": [
+                "sha256:6ae3d26b837feacf732fb8aa5b842130da1daf221f5af9f9d4b2a0a6414b0d51"
+            ],
+            "version": "==2.3.2"
+        },
         "nbconvert": {
             "hashes": [
                 "sha256:138381baa41d83584459b5cfecfc38c800ccf1f37d9ddd0bd440783346a4c39c",
@@ -426,10 +479,10 @@
         },
         "pygments": {
             "hashes": [
-                "sha256:31cba6ffb739f099a85e243eff8cb717089fdd3c7300767d9fc34cb8e1b065f5",
-                "sha256:5ad302949b3c98dd73f8d9fcdc7e9cb592f120e32a18e23efd7f3dc51194472b"
+                "sha256:36586500a94cd97f8c2c19d251cdb78868d1a822e0e491bfc1d811766aedb772",
+                "sha256:b437bc0d04dc36f1f5b3592985b3e0a3d0af46b7c39199231706d19a4ee63344"
             ],
-            "version": "==2.4.0"
+            "version": "==2.4.1"
         },
         "pyparsing": {
             "hashes": [
@@ -512,6 +565,14 @@
             "index": "pypi",
             "version": "==1.0.23"
         },
+        "requests": {
+            "hashes": [
+                "sha256:11e007a8a2aa0323f5a921e9e6a2d7e4e67d9877e85773fba9ba6419025cbeb4",
+                "sha256:9cf5292fcd0f598c671cfc1e0d7d1a7f13bb8085e9a590f48c010551dc6c4b31"
+            ],
+            "index": "pypi",
+            "version": "==2.22.0"
+        },
         "scipy": {
             "hashes": [
                 "sha256:03b1e0775edbe6a4c64effb05fff2ce1429b76d29d754aa5ee2d848b60033351",
@@ -587,6 +648,13 @@
                 "sha256:c6cb5e6f57c5a9bdaa40fa71ce7b4af30298fbab9ece9815b5d995ab6217c7d9"
             ],
             "version": "==4.3.2"
+        },
+        "urllib3": {
+            "hashes": [
+                "sha256:b246607a25ac80bedac05c6f282e3cdaf3afb65420fd024ac94435cabe6e18d1",
+                "sha256:dbe59173209418ae49d485b87d1681aefa36252ee85884c31346debd19463232"
+            ],
+            "version": "==1.25.3"
         },
         "wcwidth": {
             "hashes": [
