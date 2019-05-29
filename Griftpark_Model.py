@@ -188,7 +188,6 @@ def run_flow_model():
     # Write MODFLOW input files to disk and run MODFLOW executable
     mf.write_input()
     mf.run_model()
-
     return mf
 
 
@@ -272,10 +271,8 @@ for ia, aq in enumerate(aquifers):
 
 seed = gstools.random.MasterRNG(20190517)
 
-
 with fiona.open("data/location_wells.shp", "r") as wellshp:
     wells = [f["geometry"]["coordinates"] for f in wellshp]
-
 
 with fiona.open("data/resistive_wall.shp", "r") as shapefile:
     wall = [f["geometry"] for f in shapefile]
@@ -306,7 +303,6 @@ for r, c in zip(wall_mask_row, wall_mask_col):
         # South boundary
         for l in range(5):
             hfb_data.append([l, r - 1, c, r, c, hfb_conductance])
-
 
 mf = run_flow_model()
 
