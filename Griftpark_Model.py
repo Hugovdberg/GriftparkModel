@@ -182,6 +182,9 @@ def run_flow_model():
     oc = flopy.modflow.ModflowOc(model=mf, stress_period_data=oc_spd)
     oc.reset_budgetunit()
 
+    # Setup link to MT3DMS
+    lnk = flopy.modflow.ModflowLmt(model=mf)
+
     # Setup MODFLOW solver (Preconditioned Conjugate-Gradient, PCG package)
     solver = flopy.modflow.ModflowGmg(model=mf)
 
@@ -189,6 +192,66 @@ def run_flow_model():
     mf.write_input()
     mf.run_model()
     return mf
+
+
+def run_transport(mf):
+    mt = flopy.mt3d.Mt3dms(
+        modelname=f"{modelname}_mt",
+        modflowmodel=mf,
+        version="mt3d-usgs",
+        exe_name=config.mtusgsexe,
+        model_ws=model_workspace,
+    )
+
+    icbund = np.ones((mf.dis.nlay, mf.dis.nrow, mf.dis.ncol), dtype=np.int)
+    init_conc_cyanide = np.ones((mf.dis.nlay, mf.dis.nrow, mf.dis.ncol), dtype=np.float)
+    # init_sorb_conc_cyanide = np.zeros_like(init_conc_cyanide)
+    Kd_cyanide = 9.9
+    init_conc_PAH = np.zeros_like(init_conc_cyanide)
+    init_conc_PAH[0, :, :] += inside_wall * 100.0
+    # init_sorb_conc_PAH = np.zeros_like(init_conc_cyanide)
+    Kd_PAH = (
+        10
+        ** (
+            np.array([3.3, 4.4, 5.2, 5.0, 5.0, 5.6, 5.2, 5.8, 5.9, 5.8, 4.6, 5.1, 4.7])
+        ).mean()
+        / 1e3
+        / 1e6
+    )
+    btn = flopy.mt3d.Mt3dBtn(
+        model=mt,
+        prsity=0.30,
+        ncomp=2,
+        mcomp=2,
+        icbund=icbund,
+        species_names=["Cyanide", "PAH"],
+        sconc=init_conc_cyanide,
+        sconc2=init_conc_PAH,
+    )
+    adv = flopy.mt3d.Mt3dAdv(model=mt, mixelm=-1)
+    dsp = flopy.mt3d.Mt3dDsp(model=mt, al=0.1, dmcoef=0, dmcoef2=0, trpt=0.1, trpv=0.01)
+    rct = flopy.mt3d.Mt3dRct(
+        model=mt,
+        isothm=1,
+        rhob=1800,
+        igetsc=0,
+        srconc=0,
+        srconc2=0,
+        sp1=Kd_cyanide,
+        sp12=Kd_PAH,
+        sp2=0,
+        sp22=0,
+        rc1=0,
+        rc12=0,
+        rc2=0,
+        rc22=0,
+    )
+    ssm = flopy.mt3d.Mt3dSsm(model=mt, crch=0, crch2=0)
+
+    gcg = flopy.mt3d.Mt3dGcg(model=mt)
+    mt.write_input()
+    mt.run_model()
+    return mt
 
 
 # Name and location
@@ -305,6 +368,7 @@ for r, c in zip(wall_mask_row, wall_mask_col):
             hfb_data.append([l, r - 1, c, r, c, hfb_conductance])
 
 mf = run_flow_model()
+mt = run_transport(mf)
 
 hds_file = flopy.utils.HeadFile(model_workspace / f"{modelname}.hds")
 heads = hds_file.get_data()
