@@ -183,7 +183,7 @@ def run_flow_model():
     oc.reset_budgetunit()
 
     # Setup MODFLOW solver (Preconditioned Conjugate-Gradient, PCG package)
-    solver = flopy.modflow.ModflowPcg(model=mf)
+    solver = flopy.modflow.ModflowGmg(model=mf)
 
     # Write MODFLOW input files to disk and run MODFLOW executable
     mf.write_input()
