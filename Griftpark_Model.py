@@ -80,24 +80,11 @@ def run_flow_model():
     # Setup the IBOUND and STRT arrays
     ibound = np.ones((dis.nlay, dis.nrow, dis.ncol), dtype=np.int)
     init_head = np.zeros_like(ibound, dtype=np.float)
-    horizontal_conductivity = np.empty_like(init_head)
-    vertical_conductivity = np.empty_like(init_head)
 
-    horizontal_conductivity[:] = (
-        kh_buiten[:, np.newaxis, np.newaxis] * ~inside_wall[np.newaxis, :]
-    )
-    horizontal_conductivity += (
-        kh_park[:, np.newaxis, np.newaxis] * inside_wall[np.newaxis, :]
-    )
-    vertical_conductivity[:] = (
-        kv_buiten[:, np.newaxis, np.newaxis] * ~inside_wall[np.newaxis, :]
-    )
-    vertical_conductivity += (
-        kv_park[:, np.newaxis, np.newaxis] * inside_wall[np.newaxis, :]
-    )
-
+    # Broadcast ibounds of first and second aquifer to corresponding layers
     ibound = ibounds[(wvp - 1)].astype(np.int)
-    # Set the isohead contours themselves as constant head lines
+    # Set the constant head at the top of the first and bottom of the second
+    # aquifer.
     for r, c in zip(*np.where(const_heads[0])):
         ibound[0, r, c] = -1
         if y[r, c] < 456_750:
@@ -130,14 +117,23 @@ def run_flow_model():
     #     point_volumes=node_vol[5:].ravel(),
     # )
     # field_layer_2 = np.reshape(field_layer_1, node_x[5:].shape)
-    horizontal_conductivity = np.ones((dis.nlay, dis.nrow, dis.ncol)) * 40
-    horizontal_conductivity[4, :, :] = 4
-    horizontal_conductivity[5:, :, :] = 60
     # horizontal_conductivity[:5] = field_layer_1
     # horizontal_conductivity[5:] = field_layer_2
     # Set vertical conductivity to one tenth of the horizontal conductivity in
     # every node.
-    vertical_conductivity = horizontal_conductivity / 10
+    # vertical_conductivity = horizontal_conductivity / 10
+    horizontal_conductivity = (
+        kh_buiten[:, np.newaxis, np.newaxis] * ~inside_wall[np.newaxis, :]
+    )
+    horizontal_conductivity += (
+        kh_park[:, np.newaxis, np.newaxis] * inside_wall[np.newaxis, :]
+    )
+    vertical_conductivity = (
+        kv_buiten[:, np.newaxis, np.newaxis] * ~inside_wall[np.newaxis, :]
+    )
+    vertical_conductivity += (
+        kv_park[:, np.newaxis, np.newaxis] * inside_wall[np.newaxis, :]
+    )
 
     # Setup the Layer Property Flow properties (LPF package)
     lpf = flopy.modflow.ModflowLpf(
@@ -207,15 +203,15 @@ if not model_output_dir.exists():
 layer_boundaries = [2.5, -2.5, -7.5, -32.5, -50, -60, -100]
 n_sublayers = [1, 2, 10, 7, 4, 5]
 wvp = np.repeat([1, 1, 1, 1, 2, 2], n_sublayers)
-kh_park = np.repeat([10, 20, 80, 40, 1e-6, 50], n_sublayers)
-kh_buiten = np.repeat([1, 20, 80, 40, 1e-6, 50], n_sublayers)
-kv_park = np.repeat([1, 2, 8, 4, 0.1, 5], n_sublayers)
-kv_buiten = np.repeat([0.1, 2, 8, 4, 0.005, 5], n_sublayers)
+kh_park = np.repeat([10, 20, 80, 40, 1, 50], n_sublayers)
+kh_buiten = np.repeat([1, 20, 80, 40, 1, 50], n_sublayers)
+kv_park = np.repeat([1, 2, 8, 4, 10 / 100, 5], n_sublayers)
+kv_buiten = np.repeat([0.1, 2, 8, 4, 10 / 2000, 5], n_sublayers)
 
 x_zones = [136600, 137000, 137090, 137350, 137450, 138000]
-ncol_zones = [8, 9, 52, 10, 11]
+ncol_zones = [8, 9, 26, 10, 11]
 y_zones = [455600, 456550, 456670, 457170, 457250, 458200]
-nrow_zones = [19, 12, 100, 8, 19]
+nrow_zones = [19, 12, 50, 8, 19]
 
 model_extent = np.array(
     [(min(x_zones), min(y_zones)), (max(x_zones), max(y_zones))],
