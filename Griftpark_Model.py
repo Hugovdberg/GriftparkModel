@@ -8,6 +8,7 @@ import matplotlib.path as mpth
 import matplotlib.pyplot as plt  # Plotting
 import numpy as np  # Numeric array manipulation
 import scipy.ndimage as si  # Numpy array manipulation
+import pandas as pd
 
 import config
 from utils import (
@@ -67,6 +68,7 @@ def run_flow_model():
         xul=model_extent["X"][0],
         yul=model_extent["Y"][1],
         proj4_str="+init=epsg:28992",
+        start_datetime=f"4/1/{startjaar}",
     )
 
     # # Get node coordinates and volumes for random field generation.
@@ -154,8 +156,9 @@ def run_flow_model():
 
     wel = flopy.modflow.ModflowWel(model=mf, stress_period_data={0: welldata})
 
-    # Setup recharge (RCH package) using a constant net recharge of 200mm/yr
-    recharge = np.ones(dis.botm.shape[1:], dtype=np.float) * 0.200 / 365
+    # Setup recharge (RCH package) using a time dependent recharge rate.
+    # Add recharge only to active cells of the top aquifer
+    recharge = {j: ibounds[0] * n / 1000 / 365 for j, n in enumerate(nov["NOV"])}
     rch = flopy.modflow.ModflowRch(model=mf, rech=recharge)
 
     # Setup the output control (OC package), saving heads and budgets for all
@@ -225,8 +228,18 @@ row_height = -np.diff(y_vertices)
 y = y_vertices[1:] + row_height / 2
 x, y = np.meshgrid(x, y)
 
+nov = pd.read_csv("data/neerslagoverschot.csv", index_col=0)
+startjaar = 1989
+nov.loc[startjaar, "NOV"] = nov.loc[nov.index <= startjaar, "NOV"].mean()
+nov = nov.loc[startjaar:]
 stress_periods = [
-    StressPeriod(period_length=1, n_steps=1, step_multiplier=1, steady_state=True)
+    StressPeriod(
+        period_length=(pd.Timestamp(f"{j+1}0401") - pd.Timestamp(f"{j}0401")).days,
+        n_steps=(j == startjaar) + 12 * (j > startjaar),
+        step_multiplier=1,
+        steady_state=j == nov.index[0],
+    )
+    for j in nov.index
 ]
 
 with fiona.open("data/h1.shp") as isohead:
@@ -263,7 +276,7 @@ inside_wall = np.reshape(inside_wall, x.shape)
 wall_mask = inside_wall & ~si.binary_erosion(inside_wall, border_value=False)
 wall_mask_row, wall_mask_col = np.where(wall_mask)
 
-hfb_conductance = 1e-7
+hfb_conductance = 1 / 1000
 hfb_data = []
 for r, c in zip(wall_mask_row, wall_mask_col):
     if c == min(wall_mask_col[wall_mask_row == r]):
@@ -293,6 +306,10 @@ frf = cbc_file.get_data(text="FLOW RIGHT FACE")[0]
 fff = cbc_file.get_data(text="FLOW FRONT FACE")[0]
 flf = cbc_file.get_data(text="FLOW LOWER FACE")[0]
 
+
+ts = hds_file.get_ts((0, 72, 51))
+plt.plot(pd.to_datetime(ts[:, 0], unit="D", origin="1989-04-01").normalize(), ts[:, 1])
+plt.close(fig)
 
 fig, ax = plt.subplots(figsize=(16, 16))
 ilay = 0
