@@ -176,9 +176,8 @@ def run_flow_model():
     # Setup the output control (OC package), saving heads and budgets for all
     # timesteps in all stress periods
     oc_spd = {
-        (p, s): ["SAVE HEAD", "SAVE BUDGET"]
+        (p, sp["n_steps"] - 1): ["SAVE HEAD", "SAVE BUDGET"]
         for p, sp in enumerate(stress_periods_)
-        for s in range(sp["n_steps"])
     }
     oc = flopy.modflow.ModflowOc(model=mf, stress_period_data=oc_spd)
     oc.reset_budgetunit()
