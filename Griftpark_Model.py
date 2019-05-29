@@ -371,12 +371,32 @@ mf = run_flow_model()
 mt = run_transport(mf)
 
 hds_file = flopy.utils.HeadFile(model_workspace / f"{modelname}.hds")
-heads = hds_file.get_data()
+heads = hds_file.get_data((11, 21))
+
 cbc_file = flopy.utils.CellBudgetFile(model_workspace / f"{modelname}.cbc")
 frf = cbc_file.get_data(text="FLOW RIGHT FACE")[0]
 fff = cbc_file.get_data(text="FLOW FRONT FACE")[0]
 flf = cbc_file.get_data(text="FLOW LOWER FACE")[0]
 
+conc_file2 = flopy.utils.UcnFile(model_workspace / f"MT3D002.UCN")
+sorb_conc_file2 = flopy.utils.UcnFile(model_workspace / f"MT3D002S.UCN")
+conc2 = conc_file2.get_alldata()
+conc2_ts = conc_file2.get_ts((0, 72, 51))
+sorb_conc2_ts = sorb_conc_file2.get_ts((0, 72, 51))
+fig, ax = plt.subplots()
+ax.plot(
+    pd.to_datetime(conc2_ts[:, 0], unit="D", origin="1989-04-01").normalize(),
+    conc2_ts[:, 1],
+    color="blue",
+)
+ax2 = ax.twinx()
+ax2.plot(
+    pd.to_datetime(sorb_conc2_ts[:, 0], unit="D", origin="1989-04-01").normalize(),
+    sorb_conc2_ts[:, 1],
+    color="red",
+)
+plt.show()
+plt.close(fig)
 
 ts = hds_file.get_ts((0, 72, 51))
 plt.plot(pd.to_datetime(ts[:, 0], unit="D", origin="1989-04-01").normalize(), ts[:, 1])
@@ -390,13 +410,16 @@ extent = None
 # extent = [137000, 137400, 456600, 457400]  # Wall
 # extent = [137150, 137300, 456900, 457150]  # Wells
 pmv = flopy.plot.PlotMapView(model=mf, ax=ax, layer=ilay, extent=extent)
-pmv.plot_grid(linewidths=1, alpha=0.5)
+# pmv.plot_grid(linewidths=1, alpha=0.5)
 # c = pmv.plot_array(heads, alpha=1, masked_values=[-999.99])
-c = pmv.plot_array(ibounds[0].astype(int))  # + const_heads[1].astype(int))
+c = pmv.plot_array(conc2[0])
+# c = pmv.plot_array(horizontal_conductivity, alpha=1, masked_values=[-999.99])
+# c = pmv.plot_array(ibounds[0].astype(int))  # + const_heads[1].astype(int))
 plt.colorbar(c, ax=ax)
-quiver = pmv.plot_discharge(
-    frf=frf, fff=fff, flf=flf, head=heads, color="#ffffff", istep=3, jstep=3
-)
+# pmv.plot_ibound()
+# pmv.plot_discharge(
+#     frf=frf, fff=fff, flf=flf, head=heads, color="#ffffff", istep=3, jstep=3
+# )
 # for contour in contours_h1:
 #     points = np.array(contour["geometry"]["coordinates"])
 #     ax.plot(points[:, 0], points[:, 1], "--", color="k")
@@ -407,22 +430,35 @@ pmv.plot_bc("WEL", plotAll=True)
 # pmv.plot_ibound()
 # pmv.plot_bc("HFB6")
 # pmv.plot_shapefile("data/aquifers.shp")
-# pmv.plot_shapefile("data/resistive_wall.shp", alpha=1, facecolor="None")
+pmv.plot_shapefile("data/resistive_wall.shp", alpha=1, facecolor="None")
 pmv.plot_shapefile("data/location_wells.shp", radius=1, edgecolor="blue", facecolor="b")
+fig.tight_layout()
+fig.savefig(model_output_dir / "map.png")
+plt.close(fig)
 
 fig, ax = plt.subplots(figsize=(16, 8))
-# ax.set_aspect(15)
+ax.set_aspect(15)
 # row=72, column=51
+xs_line = wells
 pxs = flopy.plot.PlotCrossSection(
-    model=mf, ax=ax, line={"column": 51}, extent=(1100, 1400, -80, -30)
+    model=mf, ax=ax, line={"row": 51}  # , extent=(600, 800, -80, 0)
 )
 pxs.plot_grid(linewidths=0.5, alpha=0.5)
-# pxs.plot_bc("WEL")
-c = pxs.plot_array(heads, head=heads, vmin=-0.125, vmax=0.025)
+# pxs.plot_bc("WEL", zorder=10)
+# c = pxs.plot_array(heads, head=heads, masked_values=[-999.99], vmin=-0.25, vmax=0.75)  #
+c = pxs.plot_array(conc2[-1], head=heads, masked_values=[-999.99])  #
 plt.colorbar(c, ax=ax)
 # pxs.plot_ibound(color_noflow="#aaaaaa", head=heads)
-quiver = pxs.plot_discharge(
-    frf=frf, fff=fff, flf=flf, head=heads, color="#ffffff", normalize=False
+pxs.plot_discharge(
+    frf=frf,
+    fff=fff,
+    flf=flf,
+    head=heads,
+    color="#ffffff",
+    normalize=True,
+    hstep=3,
+    kstep=2,
 )
 fig.tight_layout()
 fig.savefig(model_output_dir / "crosssection.png")
+plt.close(fig)
