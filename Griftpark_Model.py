@@ -249,6 +249,12 @@ def run_transport(mf):
     ssm = flopy.mt3d.Mt3dSsm(model=mt, crch=0, crch2=0)
 
     gcg = flopy.mt3d.Mt3dGcg(model=mt)
+
+    for f in model_workspace.glob('MT3D*.UCN'):
+        f.unlink()
+    for f in model_workspace.glob('MT3D*.MAS'):
+        f.unlink()
+
     mt.write_input()
     mt.run_model()
     return mt
