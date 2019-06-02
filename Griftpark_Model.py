@@ -165,7 +165,7 @@ def run_flow_model():
             welldata[w]["flux"] = wellflux * kD[il] / kD.sum()
             w += 1
     welldata = welldata[:w]
-    first_year = np.where(nov.index == 1990)[0][0]
+    first_year = np.where(nov.index == startjaar)[0][0]
     wel = flopy.modflow.ModflowWel(model=mf, stress_period_data={first_year: welldata})
 
     # Setup recharge (RCH package) using a time dependent recharge rate.
@@ -218,6 +218,7 @@ def run_transport(mf):
         / 1e3
         / 1e6
     )
+    n_print_times = 15
     btn = flopy.mt3d.Mt3dBtn(
         model=mt,
         prsity=0.30,
@@ -227,6 +228,8 @@ def run_transport(mf):
         species_names=["Cyanide", "PAH"],
         sconc=init_conc_cyanide,
         sconc2=init_conc_PAH,
+        nprs=n_print_times,
+        timprs=np.linspace(0, np.sum(mf.dis.perlen.array), num=n_print_times),
     )
     adv = flopy.mt3d.Mt3dAdv(model=mt, mixelm=-1)
     dsp = flopy.mt3d.Mt3dDsp(model=mt, al=0.1, dmcoef=0, dmcoef2=0, trpt=0.1, trpv=0.01)
@@ -308,17 +311,22 @@ y = y_vertices[1:] + row_height / 2
 x, y = np.meshgrid(x, y)
 
 nov = pd.read_csv("data/neerslagoverschot.csv", index_col=0)
-startjaar = 1989
+startjaar = 2019
 nov.loc[startjaar, "NOV"] = nov.loc[nov.index <= startjaar, "NOV"].mean()
 nov = nov.loc[startjaar:]
+# stress_periods = [
+#     StressPeriod(
+#         period_length=(pd.Timestamp(f"{j+1}0401") - pd.Timestamp(f"{j}0401")).days,
+#         n_steps=(j == startjaar) + 12 * (j > startjaar),
+#         step_multiplier=1,
+#         steady_state=j == nov.index[0],
+#     )
+#     for j in nov.index
+# ]
 stress_periods = [
     StressPeriod(
-        period_length=(pd.Timestamp(f"{j+1}0401") - pd.Timestamp(f"{j}0401")).days,
-        n_steps=(j == startjaar) + 12 * (j > startjaar),
-        step_multiplier=1,
-        steady_state=j == nov.index[0],
+        period_length=30 * 365, n_steps=1, step_multiplier=1, steady_state=True
     )
-    for j in nov.index
 ]
 
 with fiona.open("data/h1.shp") as isohead:
