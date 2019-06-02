@@ -362,27 +362,28 @@ inside_wall = wall_path.contains_points(np.vstack((x.ravel(), y.ravel())).T)
 inside_wall = np.reshape(inside_wall, x.shape)
 
 wall_mask = inside_wall & ~si.binary_erosion(inside_wall, border_value=False)
+outside_wall_mask = ~inside_wall & ~si.binary_erosion(~inside_wall, border_value=True)
 wall_mask_row, wall_mask_col = np.where(wall_mask)
 
 hfb_conductance = 1 / 1000
 hfb_data = []
 for r, c in zip(wall_mask_row, wall_mask_col):
-    if c == min(wall_mask_col[wall_mask_row == r]):
+    if outside_wall_mask[r, c - 1]:
         # West boundary
-        for l in range(5):
+        for l in range(sum(wvp == 1)):
             hfb_data.append([l, r, c - 1, r, c, hfb_conductance])
-    if c == max(wall_mask_col[wall_mask_row == r]):
+    if outside_wall_mask[r, c + 1]:
         # East boundary
-        for l in range(5):
+        for l in range(sum(wvp == 1)):
             hfb_data.append([l, r, c, r, c + 1, hfb_conductance])
-    if r == min(wall_mask_row[wall_mask_col == c]):
+    if outside_wall_mask[r - 1, c]:
         # North boundary
-        for l in range(5):
+        for l in range(sum(wvp == 1)):
             hfb_data.append([l, r - 1, c, r, c, hfb_conductance])
-    if r == max(wall_mask_row[wall_mask_col == c]):
+    if outside_wall_mask[r + 1, c]:
         # South boundary
-        for l in range(5):
-            hfb_data.append([l, r - 1, c, r, c, hfb_conductance])
+        for l in range(sum(wvp == 1)):
+            hfb_data.append([l, r, c, r + 1, c, hfb_conductance])
 
 mf = run_flow_model()
 mt = run_transport(mf)
