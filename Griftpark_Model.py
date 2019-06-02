@@ -204,10 +204,10 @@ def run_transport(mf):
     )
 
     icbund = np.abs(mf.bas6.ibound.array)
-    init_conc_cyanide = np.zeros(
-        (mf.dis.nlay, mf.dis.nrow, mf.dis.ncol), dtype=np.float
-    )
-    init_conc_cyanide[0, :, :] += inside_wall * 100.0
+    # init_conc_cyanide = np.zeros(
+    #     (mf.dis.nlay, mf.dis.nrow, mf.dis.ncol), dtype=np.float
+    # )
+    # init_conc_cyanide[0, :, :] += inside_wall * 100.0
     # init_sorb_conc_cyanide = np.zeros_like(init_conc_cyanide)
     Kd_cyanide = 9.9
     # init_conc_PAH = np.zeros_like(init_conc_cyanide)
@@ -219,7 +219,7 @@ def run_transport(mf):
             np.array([3.3, 4.4, 5.2, 5.0, 5.0, 5.6, 5.2, 5.8, 5.9, 5.8, 4.6, 5.1, 4.7])
         ).mean()
         / 1e3
-        / 1e6
+        # / 1e6
     )
     n_print_times = 15
     btn = flopy.mt3d.Mt3dBtn(
@@ -388,6 +388,23 @@ for r, c in zip(wall_mask_row, wall_mask_col):
 mf = run_flow_model()
 
 init_conc_PAH = np.zeros((mf.dis.nlay, mf.dis.nrow, mf.dis.ncol), dtype=np.float)
+init_conc_cyanide = np.zeros((mf.dis.nlay, mf.dis.nrow, mf.dis.ncol), dtype=np.float)
+
+with fiona.open("data/cyanide/cyanide_0_5.shp") as src:
+    contours = [mpth.Path(f["geometry"]["coordinates"][0]) for f in src]
+init_conc_cyanide[0, :, :] = np.reshape(
+    np.sum(
+        np.vstack(
+            [
+                contour.contains_points(np.vstack((x.ravel(), y.ravel())).T)
+                for contour in contours
+            ]
+        ),
+        axis=0,
+    ),
+    x.shape,
+)
+
 with fiona.open("data/PAK/PAK_0_5.shp") as src:
     contours = [mpth.Path(f["geometry"]["coordinates"][0]) for f in src]
 init_conc_PAH[0, :, :] = np.reshape(
@@ -402,6 +419,32 @@ init_conc_PAH[0, :, :] = np.reshape(
     ),
     x.shape,
 )
+with fiona.open("data/PAK/PAK_5_15.shp") as src:
+    for contour in src:
+        # print(contour["properties"]["diepte"])
+        contour_path = mpth.Path(contour["geometry"]["coordinates"][0])
+        in_contour = contour_path.contains_points(np.vstack((x.ravel(), y.ravel())).T)
+        in_contour = np.reshape(in_contour, x.shape)
+        icr, icc = np.where(in_contour)
+        # print(layer_boundaries[0] - contour["properties"]["diepte"])
+        for r, c in zip(icr, icc):
+            l_top = mf.dis.get_layer(r, c, -2.51)
+            l_bottom = mf.dis.get_layer(
+                r, c, layer_boundaries[0] - contour["properties"]["diepte"] + 0.01
+            )
+            for l in range(l_top, l_bottom + 1):
+                init_conc_PAH[l, r, c] = 1
+with fiona.open("data/PAK/PAK_15_23.shp") as src:
+    for contour in src:
+        contour_path = mpth.Path(contour["geometry"]["coordinates"][0])
+        in_contour = contour_path.contains_points(np.vstack((x.ravel(), y.ravel())).T)
+        in_contour = np.reshape(in_contour, x.shape)
+        icr, icc = np.where(in_contour)
+        for r, c in zip(icr, icc):
+            l_top = mf.dis.get_layer(r, c, -12.51)
+            l_bottom = mf.dis.get_layer(r, c, -20.49)
+            for l in range(l_top, l_bottom + 1):
+                init_conc_PAH[l, r, c] = 1
 
 
 mt = run_transport(mf)
