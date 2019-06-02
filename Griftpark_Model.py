@@ -210,8 +210,8 @@ def run_transport(mf):
     init_conc_cyanide[0, :, :] += inside_wall * 100.0
     # init_sorb_conc_cyanide = np.zeros_like(init_conc_cyanide)
     Kd_cyanide = 9.9
-    init_conc_PAH = np.zeros_like(init_conc_cyanide)
-    init_conc_PAH[0, :, :] += inside_wall * 100.0
+    # init_conc_PAH = np.zeros_like(init_conc_cyanide)
+    # init_conc_PAH[0, :, :] += inside_wall * 100.0
     # init_sorb_conc_PAH = np.zeros_like(init_conc_cyanide)
     Kd_PAH = (
         10
@@ -386,6 +386,24 @@ for r, c in zip(wall_mask_row, wall_mask_col):
             hfb_data.append([l, r, c, r + 1, c, hfb_conductance])
 
 mf = run_flow_model()
+
+init_conc_PAH = np.zeros((mf.dis.nlay, mf.dis.nrow, mf.dis.ncol), dtype=np.float)
+with fiona.open("data/PAK/PAK_0_5.shp") as src:
+    contours = [mpth.Path(f["geometry"]["coordinates"][0]) for f in src]
+init_conc_PAH[0, :, :] = np.reshape(
+    np.sum(
+        np.vstack(
+            [
+                contour.contains_points(np.vstack((x.ravel(), y.ravel())).T)
+                for contour in contours
+            ]
+        ),
+        axis=0,
+    ),
+    x.shape,
+)
+
+
 mt = run_transport(mf)
 
 wall_segments = []
