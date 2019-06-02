@@ -203,8 +203,11 @@ def run_transport(mf):
         model_ws=model_workspace,
     )
 
-    icbund = np.ones((mf.dis.nlay, mf.dis.nrow, mf.dis.ncol), dtype=np.int)
-    init_conc_cyanide = np.ones((mf.dis.nlay, mf.dis.nrow, mf.dis.ncol), dtype=np.float)
+    icbund = np.abs(mf.bas6.ibound.array)
+    init_conc_cyanide = np.zeros(
+        (mf.dis.nlay, mf.dis.nrow, mf.dis.ncol), dtype=np.float
+    )
+    init_conc_cyanide[0, :, :] += inside_wall * 100.0
     # init_sorb_conc_cyanide = np.zeros_like(init_conc_cyanide)
     Kd_cyanide = 9.9
     init_conc_PAH = np.zeros_like(init_conc_cyanide)
