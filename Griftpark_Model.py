@@ -282,9 +282,9 @@ kv_park = np.repeat([1, 2, 8, 4, 10 / 100, 5], n_sublayers)
 kv_buiten = np.repeat([0.1, 2, 8, 4, 10 / 2000, 5], n_sublayers)
 
 x_zones = [136600, 137000, 137090, 137350, 137450, 138000]
-ncol_zones = [8, 9, 26, 10, 11]
+ncol_zones = [8, 9, 52, 10, 11]
 y_zones = [455600, 456550, 456670, 457170, 457250, 458200]
-nrow_zones = [19, 12, 50, 8, 19]
+nrow_zones = [19, 12, 100, 8, 19]
 
 model_extent = np.array(
     [(min(x_zones), min(y_zones)), (max(x_zones), max(y_zones))],
