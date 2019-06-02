@@ -388,6 +388,15 @@ for r, c in zip(wall_mask_row, wall_mask_col):
 mf = run_flow_model()
 mt = run_transport(mf)
 
+wall_segments = []
+for hfb in mf.hfb6.hfb_data:
+    if hfb[0] == 0:
+        v1 = mf.modelgrid.get_cell_vertices(hfb[1], hfb[2])
+        v2 = mf.modelgrid.get_cell_vertices(hfb[3], hfb[4])
+        v1 = [complex(*v) for v in v1]
+        v2 = [complex(*v) for v in v2]
+        wall_segments.append(tuple([*np.array([(v.real, v.imag) for v in np.intersect1d(v1, v2)]).T]))
+
 hds_file = flopy.utils.HeadFile(model_workspace / f"{modelname}.hds")
 # heads = hds_file.get_data((11, 21))
 heads = hds_file.get_data()
@@ -429,15 +438,9 @@ extent = None
 extent = [137000, 137400, 456600, 457250]  # Wall
 pmv = flopy.plot.PlotMapView(model=mf, ax=ax, layer=ilay, extent=extent)
 pmv_conc = flopy.plot.PlotMapView(model=mf, ax=ax2, layer=ilay, extent=extent)
-for hfb in mf.hfb6.hfb_data:
-    if hfb[0] == 0:
-        v1 = mf.modelgrid.get_cell_vertices(hfb[1], hfb[2])
-        v2 = mf.modelgrid.get_cell_vertices(hfb[3], hfb[4])
-        v1 = [complex(*v) for v in v1]
-        v2 = [complex(*v) for v in v2]
-        v = tuple([*np.array([(v.real, v.imag) for v in np.intersect1d(v1, v2)]).T])
-        v = ax.plot(*v, color="grey")
 c = pmv.plot_array(heads, alpha=0.5, masked_values=[-999.99])
+for segment in wall_segments:
+    v = ax.plot(*segment, color="grey")
 plt.colorbar(c, ax=ax)
 pmv.plot_discharge(
     frf=frf, fff=fff, flf=flf, head=heads, color="#ff0000", istep=3, jstep=3
