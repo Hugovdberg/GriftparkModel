@@ -395,7 +395,9 @@ for hfb in mf.hfb6.hfb_data:
         v2 = mf.modelgrid.get_cell_vertices(hfb[3], hfb[4])
         v1 = [complex(*v) for v in v1]
         v2 = [complex(*v) for v in v2]
-        wall_segments.append(tuple([*np.array([(v.real, v.imag) for v in np.intersect1d(v1, v2)]).T]))
+        wall_segments.append(
+            tuple([*np.array([(v.real, v.imag) for v in np.intersect1d(v1, v2)]).T])
+        )
 
 hds_file = flopy.utils.HeadFile(model_workspace / f"{modelname}.hds")
 # heads = hds_file.get_data((11, 21))
@@ -427,30 +429,34 @@ ax2.plot(
 plt.show()
 plt.close(fig)
 
-fig, axs = plt.subplots(ncols=2, figsize=(16, 16))
+fig, axs = plt.subplots(ncols=2, figsize=(24, 16))
 ax, ax2 = axs
-ilay = 2
-ax.set_title(f"Heads layer {ilay+1}")
-ax2.set_title(f"Concentration layer {ilay+1}")
+ilay = 0
+ax.set_title(f"Original concentration layer {ilay+1}")
+ax2.set_title(f"Final concentration layer {ilay+1}")
 ax.set_aspect("equal")
 ax2.set_aspect("equal")
 extent = None
-extent = [137000, 137400, 456600, 457250]  # Wall
+extent = [137000, 137400, 456525, 457325]  # Wall
 pmv = flopy.plot.PlotMapView(model=mf, ax=ax, layer=ilay, extent=extent)
 pmv_conc = flopy.plot.PlotMapView(model=mf, ax=ax2, layer=ilay, extent=extent)
-c = pmv.plot_array(heads, alpha=0.5, masked_values=[-999.99])
 for segment in wall_segments:
     v = ax.plot(*segment, color="grey")
+# c = pmv.plot_array(heads, alpha=0.5, masked_values=[-999.99])
+c = pmv.plot_array(conc2[0], masked_values=[conc2.max()], alpha=0.5)
 plt.colorbar(c, ax=ax)
 pmv.plot_discharge(
     frf=frf, fff=fff, flf=flf, head=heads, color="#ff0000", istep=3, jstep=3
 )
 pmv.plot_bc("WEL", plotAll=True)
 pmv.plot_shapefile("data/resistive_wall.shp", alpha=1, facecolor="None")
+pmv.plot_shapefile("data/PAK/PAK_0_5.shp", alpha=0.5, facecolor="red")
 pmv.plot_shapefile("data/location_wells.shp", radius=1, edgecolor="blue", facecolor="b")
 
 c = pmv_conc.plot_array(conc2[-1], masked_values=[conc2.max()], alpha=0.5)
 plt.colorbar(c, ax=ax2)
+for segment in wall_segments:
+    v = ax2.plot(*segment, color="grey")
 
 fig.tight_layout()
 fig.savefig(model_output_dir / "map.png")
