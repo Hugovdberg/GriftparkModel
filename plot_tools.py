@@ -5,9 +5,9 @@ import fiona
 import fiona.crs
 
 xs_lines = {
-    "A-A'": {"line": [[137215, 457200], [137215, 456600]]},
-    "B-B'": {"line": [[137000, 457075], [137375, 457075]]},
-    "C-C'": {"line": [[137050, 456800], [137375, 456800]]},
+    "A-A'": {"line": {"line": [[137215, 457200], [137215, 456600]]}},
+    "B-B'": {"line": {"line": [[137000, 457075], [137375, 457075]]}},
+    "C-C'": {"line": {"line": [[137050, 456800], [137375, 456800]]}},
 }
 
 
@@ -43,7 +43,7 @@ def plot_model(mf, mt, model_output_dir):
     conc2 = conc_file2.get_alldata()
 
     for icomp, comp in enumerate([conc1, conc2]):
-        comp_name = mt.btn.species_names[icomp]
+        comp_name = ["Cyanide", "PAH"][icomp]
         for ilay in range(mf.dis.nlay):
             fig, axs = plt.subplots(ncols=2, figsize=(24, 16))
             ax, ax2 = axs
@@ -89,7 +89,7 @@ def plot_model(mf, mt, model_output_dir):
 
     for icomp, comp in enumerate([conc1, conc2]):
         for line_title, xs_line in xs_lines.items():
-            comp_name = mt.btn.species_names[icomp]
+            comp_name = ["Cyanide", "PAH"][icomp]
             fig, axs = plt.subplots(nrows=2, figsize=(16, 16))
             ax, ax2 = axs
             ax.set_title(f"Original concentration {comp_name} on transect {line_title}")
@@ -99,8 +99,8 @@ def plot_model(mf, mt, model_output_dir):
             # row=72, column=51
             # xs_line = wells
             # xs_line = [[137215, 457200], [137215, 456600]]
-            pxs = flopy.plot.PlotCrossSection(model=mf, ax=ax, line=xs_line)
-            pxs2 = flopy.plot.PlotCrossSection(model=mf, ax=ax2, line=xs_line)
+            pxs = flopy.plot.PlotCrossSection(model=mf, ax=ax, **xs_line)
+            pxs2 = flopy.plot.PlotCrossSection(model=mf, ax=ax2, **xs_line)
             pxs.plot_grid(linewidths=0.5, alpha=0.5)
             pxs2.plot_grid(linewidths=0.5, alpha=0.5)
             c = pxs.plot_array(
@@ -128,17 +128,20 @@ def plot_model(mf, mt, model_output_dir):
             )
             plt.close(fig)
 
-    # with fiona.open(
-    #     model_output_dir / "crosssections.shp",
-    #     "w",
-    #     driver="ESRI Shapefile",
-    #     crs=fiona.crs.from_epsg(28992),
-    #     schema={"geometry": "LineString", "properties": {"title": "str"}},
-    # ) as writer:
-    #     for line_title, xs_line in xs_lines.items():
-    #         writer.write(
-    #             {
-    #                 "geometry": {"type": "LineString", "coordinates": xs_line},
-    #                 "properties": {"title": line_title},
-    #             }
-    #         )
+    with fiona.open(
+        model_output_dir / "crosssections.shp",
+        "w",
+        driver="ESRI Shapefile",
+        crs=fiona.crs.from_epsg(28992),
+        schema={"geometry": "LineString", "properties": {"title": "str"}},
+    ) as writer:
+        for line_title, xs_line in xs_lines.items():
+            writer.write(
+                {
+                    "geometry": {
+                        "type": "LineString",
+                        "coordinates": xs_line["line"]["line"],
+                    },
+                    "properties": {"title": line_title},
+                }
+            )

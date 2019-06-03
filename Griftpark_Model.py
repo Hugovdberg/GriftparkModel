@@ -156,6 +156,7 @@ model_config = {
 }
 
 mf = run_flow_model(modelname, model_workspace, model_config)
+# mf.modelgrid.write_shapefile(model_output_dir / "modelgrid.shp")
 
 init_conc_PAH = np.zeros((mf.dis.nlay, mf.dis.nrow, mf.dis.ncol), dtype=np.float)
 init_conc_cyanide = np.zeros((mf.dis.nlay, mf.dis.nrow, mf.dis.ncol), dtype=np.float)
@@ -220,7 +221,8 @@ model_config["transport"] = {
     "initial_conc": {"cyanide": init_conc_cyanide, "PAH": init_conc_PAH}
 }
 
-mt = run_transport(mf, model_config)
+# mt = run_transport(mf, model_config)
+mt = flopy.mt3d.Mt3dms.load(model_workspace / f"{modelname}_mt.nam")
 
 plot_model(mf, mt, model_output_dir)
 
@@ -235,7 +237,7 @@ xs_lines_full = {
     "A-A'": {
         "line": {
             "column": mf.dis.get_rc_from_node_coordinates(
-                *xs_lines["A-A'"][0], local=False
+                *xs_lines["A-A'"]["line"]["line"][0], local=False
             )[1]
         },
         "extent": (1000, 1600, -100, 2.5),
@@ -243,7 +245,7 @@ xs_lines_full = {
     "B-B'": {
         "line": {
             "row": mf.dis.get_rc_from_node_coordinates(
-                *xs_lines["B-B'"][0], local=False
+                *xs_lines["B-B'"]["line"]["line"][0], local=False
             )[0]
         },
         "extent": (400, 780, -100, 2.5),
@@ -251,7 +253,7 @@ xs_lines_full = {
     "C-C'": {
         "line": {
             "row": mf.dis.get_rc_from_node_coordinates(
-                *xs_lines["C-C'"][0], local=False
+                *xs_lines["C-C'"]["line"]["line"][0], local=False
             )[0]
         },
         "extent": (450, 780, -100, 2.5),

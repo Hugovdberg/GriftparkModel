@@ -221,8 +221,9 @@ model_config["transport"] = {
 }
 
 # mt = run_transport(mf, model_config)
+mt = flopy.mt3d.Mt3dms.load(model_workspace / f"{modelname}_mt.nam")
 
-# plot_model(mf, mt, model_output_dir)
+plot_model(mf, mt, model_output_dir)
 
 hds_file = flopy.utils.HeadFile(model_workspace / f"{modelname}.hds")
 heads = hds_file.get_data()
@@ -235,7 +236,7 @@ xs_lines_full = {
     "A-A'": {
         "line": {
             "column": mf.dis.get_rc_from_node_coordinates(
-                *xs_lines["A-A'"]["line"][0], local=False
+                *xs_lines["A-A'"]["line"]["line"][0], local=False
             )[1]
         },
         "extent": (1000, 1600, -100, 2.5),
@@ -243,7 +244,7 @@ xs_lines_full = {
     "B-B'": {
         "line": {
             "row": mf.dis.get_rc_from_node_coordinates(
-                *xs_lines["B-B'"]["line"][0], local=False
+                *xs_lines["B-B'"]["line"]["line"][0], local=False
             )[0]
         },
         "extent": (400, 780, -100, 2.5),
@@ -251,7 +252,7 @@ xs_lines_full = {
     "C-C'": {
         "line": {
             "row": mf.dis.get_rc_from_node_coordinates(
-                *xs_lines["C-C'"]["line"][0], local=False
+                *xs_lines["C-C'"]["line"]["line"][0], local=False
             )[0]
         },
         "extent": (450, 780, -100, 2.5),
