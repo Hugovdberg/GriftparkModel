@@ -110,33 +110,32 @@ def run_flow_model(modelname, model_workspace, model_config):
         # Get node coordinates and volumes for random field generation.
         _, _, node_z = dis.get_node_coordinates()
         node_vol = dis.get_cell_volumes()
-        node_x = np.tile(x, (len(node_z), 1, 1))
-        node_y = np.tile(y, (len(node_z), 1, 1))
+        # node_x = np.tile(x, (len(node_z), 1, 1))
+        # node_y = np.tile(y, (len(node_z), 1, 1))
 
-        model_layer_1 = gstools.Gaussian(dim=3, var=1, len_scale=[50, 50, 5])
-        model_layer_2 = gstools.Gaussian(dim=3, var=2, len_scale=[40, 40, 3])
-
-        srf_layer_1 = gstools.SRF(
-            model=model_layer_1, mean=25, upscaling="coarse_graining"
-        )
-        srf_layer_2 = gstools.SRF(
-            model=model_layer_2, mean=35, upscaling="coarse_graining"
-        )
-
-        field_layer_1 = srf_layer_1(
-            pos=(node_x[:5].ravel(), node_y[:5].ravel(), node_z[:5].ravel()),
-            seed=seed(),
-            point_volumes=node_vol[:5].ravel(),
-        )
-        field_layer_1 = np.reshape(field_layer_1, node_x[:5].shape)
-        field_layer_2 = srf_layer_2(
-            pos=(node_x[5:].ravel(), node_y[5:].ravel(), node_z[5:].ravel()),
-            seed=seed(),
-            point_volumes=node_vol[5:].ravel(),
-        )
-        field_layer_2 = np.reshape(field_layer_1, node_x[5:].shape)
-        horizontal_conductivity[:5] = field_layer_1
-        horizontal_conductivity[5:] = field_layer_2
+        layers = np.repeat(range(len(n_sublayers)), n_sublayers)
+        unique_layers = np.unique(layers, return_index=True)
+        srf = [
+            gstools.SRF(
+                model=gstools.Gaussian(
+                    dim=3,
+                    var=model_config["flow"]["generator"]["variances"][l],
+                    len_scale=model_config["flow"]["generator"]["cor_lengths"][l],
+                ),
+                mean=np.log10(model_config["flow"]["k_h"]["regional"][li]),
+                upscaling="coarse_graining",
+            )
+            for l, li in zip(*unique_layers)
+        ]
+        for l, ln in enumerate(layers):
+            horizontal_conductivity[l, :, :] = 10 ** np.reshape(
+                srf[ln](
+                    pos=(x.ravel(), y.ravel(), node_z[l].ravel()),
+                    seed=seed(),
+                    point_volumes=node_vol[l].ravel(),
+                ),
+                (dis.nrow, dis.ncol),
+            )
         # Set vertical conductivity to one tenth of the horizontal conductivity in
         # every node.
         vertical_conductivity = horizontal_conductivity / 10
@@ -209,7 +208,9 @@ def run_flow_model(modelname, model_workspace, model_config):
 
     # Write MODFLOW input files to disk and run MODFLOW executable
     mf.write_input()
-    mf.run_model()
+    success, _ = mf.run_model()
+    if not success:
+        raise Exception("MODFLOW failed")
     return mf
 
 
