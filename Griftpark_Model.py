@@ -2,262 +2,16 @@
 from pathlib import Path  # Filepath maniputlation
 
 import fiona
-import fiona.crs
-import flopy  # MODFLOW interface for Python
 import gstools  # GeoStat-tools
 import matplotlib.path as mpth
-import matplotlib.pyplot as plt  # Plotting
 import numpy as np  # Numeric array manipulation
 import pandas as pd
 import scipy.ndimage as si  # Numpy array manipulation
 
-import config
-from utils import StressPeriod  # Local utility functions and definitions
-from utils import stress_period_dtype
-
-
-def run_flow_model():
-    # Extract tops and bottoms from the layer boundaries (defined outside
-    # function), and interpolate layers to sublayers for random field generation.
-    top = layer_boundaries[0]
-    bottoms = np.hstack(
-        [
-            np.linspace(u, l, n + 1)[1:]
-            for u, l, n in zip(layer_boundaries[:-1], layer_boundaries[1:], n_sublayers)
-        ]
-    )
-
-    # Convert stress period list (defined outside function) to recarray for easy
-    # data extraction.
-    stress_periods_ = np.array(stress_periods, dtype=stress_period_dtype)
-
-    # Extract number of layers, columns, rows and stress periods
-    n_layers = bottoms.size
-    n_cols = col_width.size
-    n_rows = row_height.size
-    n_stress_periods = stress_periods_.size
-
-    # Setup basic model, including reference location for spatial projections
-    mf = flopy.modflow.Modflow(
-        modelname=modelname,
-        version="mf2005",
-        exe_name=config.mfexe,
-        model_ws=model_workspace,
-        xul=model_extent["X"][0],
-        yul=model_extent["Y"][1],
-        proj4_str="EPSG:28992",
-    )
-    # Setup numeric discretisation (DIS package) using data collected above
-    dis = flopy.modflow.ModflowDis(
-        model=mf,
-        nlay=n_layers,
-        nrow=n_rows,
-        ncol=n_cols,
-        nper=n_stress_periods,
-        itmuni=4,
-        lenuni=2,
-        delr=col_width,
-        delc=row_height,
-        top=top,
-        botm=bottoms,
-        perlen=stress_periods_["period_length"],
-        nstp=stress_periods_["n_steps"],
-        tsmult=stress_periods_["step_multiplier"],
-        steady=stress_periods_["steady_state"],
-        xul=model_extent["X"][0],
-        yul=model_extent["Y"][1],
-        proj4_str="+init=epsg:28992",
-        start_datetime=f"4/1/{startjaar}",
-    )
-
-    # # Get node coordinates and volumes for random field generation.
-    _, _, node_z = dis.get_node_coordinates()
-    node_vol = dis.get_cell_volumes()
-    node_x = np.tile(x, (len(node_z), 1, 1))
-    node_y = np.tile(y, (len(node_z), 1, 1))
-
-    # Setup the IBOUND and STRT arrays
-    ibound = np.ones((dis.nlay, dis.nrow, dis.ncol), dtype=np.int)
-    init_head = np.zeros_like(ibound, dtype=np.float)
-
-    # Broadcast ibounds of first and second aquifer to corresponding layers
-    ibound = ibounds[(wvp - 1)].astype(np.int)
-    # Set the constant head at the top of the first and bottom of the second
-    # aquifer.
-    for r, c in zip(*np.where(const_heads[0])):
-        ibound[0, r, c] = -1
-        if y[r, c] < 456_750:
-            init_head[0, r, c] = 0.25
-    for r, c in zip(*np.where(const_heads[1])):
-        ibound[-1, r, c] = -1
-        if x[r, c] < 137_600:
-            init_head[-1, r, c] = -0.25
-
-    # Setup the basic flow (BAS package)
-    bas = flopy.modflow.ModflowBas(model=mf, ibound=ibound, strt=init_head)
-
-    # Generate random fields for hydraulic conductivity (data now based purely
-    # on random mean and variance)
-    # model_layer_1 = gstools.Gaussian(dim=3, var=1, len_scale=[50, 50, 5])
-    # model_layer_2 = gstools.Gaussian(dim=3, var=2, len_scale=[40, 40, 3])
-
-    # srf_layer_1 = gstools.SRF(model=model_layer_1, mean=25, upscaling="coarse_graining")
-    # srf_layer_2 = gstools.SRF(model=model_layer_2, mean=35, upscaling="coarse_graining")
-
-    # field_layer_1 = srf_layer_1(
-    #     pos=(node_x[:5].ravel(), node_y[:5].ravel(), node_z[:5].ravel()),
-    #     seed=seed(),
-    #     point_volumes=node_vol[:5].ravel(),
-    # )
-    # field_layer_1 = np.reshape(field_layer_1, node_x[:5].shape)
-    # field_layer_2 = srf_layer_2(
-    #     pos=(node_x[5:].ravel(), node_y[5:].ravel(), node_z[5:].ravel()),
-    #     seed=seed(),
-    #     point_volumes=node_vol[5:].ravel(),
-    # )
-    # field_layer_2 = np.reshape(field_layer_1, node_x[5:].shape)
-    # horizontal_conductivity[:5] = field_layer_1
-    # horizontal_conductivity[5:] = field_layer_2
-    # Set vertical conductivity to one tenth of the horizontal conductivity in
-    # every node.
-    # vertical_conductivity = horizontal_conductivity / 10
-    horizontal_conductivity = (
-        kh_buiten[:, np.newaxis, np.newaxis] * ~inside_wall[np.newaxis, :]
-    )
-    horizontal_conductivity += (
-        kh_park[:, np.newaxis, np.newaxis] * inside_wall[np.newaxis, :]
-    )
-    vertical_conductivity = (
-        kv_buiten[:, np.newaxis, np.newaxis] * ~inside_wall[np.newaxis, :]
-    )
-    vertical_conductivity += (
-        kv_park[:, np.newaxis, np.newaxis] * inside_wall[np.newaxis, :]
-    )
-
-    # Setup the Layer Property Flow properties (LPF package)
-    lpf = flopy.modflow.ModflowLpf(
-        model=mf, hk=horizontal_conductivity, vka=vertical_conductivity
-    )
-
-    hfb = flopy.modflow.ModflowHfb(model=mf, nphfb=0, nacthfb=0, hfb_data=hfb_data)
-
-    welldata = flopy.modflow.ModflowWel.get_empty(ncells=len(wells) * dis.nlay)
-    wellflux = -10 * 24 / len(wells)
-    w = 0
-    z_top = -21
-    z_bot = -43
-    for well in wells:
-        r, c = dis.get_rc_from_node_coordinates(*well, local=False)
-        l_top = dis.get_layer(r, c, z_top)
-        l_bot = dis.get_layer(r, c, z_bot)
-        kD = np.array(
-            [
-                horizontal_conductivity[l, r, c]
-                * (min(dis.botm[l - 1, r, c], z_top) - max(dis.botm[l, r, c], z_bot))
-                for l in range(l_top, l_bot + 1)
-            ]
-        )
-        for il, l in enumerate(range(l_top, l_bot + 1)):
-            welldata[w]["k"] = l
-            welldata[w]["i"] = r
-            welldata[w]["j"] = c
-            welldata[w]["flux"] = wellflux * kD[il] / kD.sum()
-            w += 1
-    welldata = welldata[:w]
-    first_year = np.where(nov.index == startjaar)[0][0]
-    wel = flopy.modflow.ModflowWel(model=mf, stress_period_data={first_year: welldata})
-
-    # Setup recharge (RCH package) using a time dependent recharge rate.
-    # Add recharge only to active cells of the top aquifer
-    recharge = {j: ibounds[0] * n / 1000 / 365 for j, n in enumerate(nov["NOV"])}
-    rch = flopy.modflow.ModflowRch(model=mf, rech=recharge)
-
-    # Setup the output control (OC package), saving heads and budgets for all
-    # timesteps in all stress periods
-    oc_spd = {
-        (p, sp["n_steps"] - 1): ["SAVE HEAD", "SAVE BUDGET"]
-        for p, sp in enumerate(stress_periods_)
-    }
-    oc = flopy.modflow.ModflowOc(model=mf, stress_period_data=oc_spd)
-    oc.reset_budgetunit()
-
-    # Setup link to MT3DMS
-    lnk = flopy.modflow.ModflowLmt(model=mf)
-
-    # Setup MODFLOW solver (Preconditioned Conjugate-Gradient, PCG package)
-    solver = flopy.modflow.ModflowGmg(model=mf)
-
-    # Write MODFLOW input files to disk and run MODFLOW executable
-    mf.write_input()
-    mf.run_model()
-    return mf
-
-
-def run_transport(mf):
-    mt = flopy.mt3d.Mt3dms(
-        modelname=f"{modelname}_mt",
-        modflowmodel=mf,
-        version="mt3d-usgs",
-        exe_name=config.mtusgsexe,
-        model_ws=model_workspace,
-    )
-
-    icbund = np.abs(
-        mf.bas6.ibound.array
-    )  # Set only active flow cells to active concentration
-    Kd_cyanide = 1e-9
-    Kd_PAH = (
-        10
-        ** (
-            np.array([3.3, 4.4, 5.2, 5.0, 5.0, 5.6, 5.2, 5.8, 5.9, 5.8, 4.6, 5.1, 4.7])
-        ).mean()
-        / 1e3
-        # / 1e6
-    )
-    n_print_times = 15
-    btn = flopy.mt3d.Mt3dBtn(
-        model=mt,
-        prsity=0.30,
-        ncomp=2,
-        mcomp=2,
-        icbund=icbund,
-        species_names=["Cyanide", "PAH"],
-        sconc=init_conc_cyanide,
-        sconc2=init_conc_PAH,
-        nprs=n_print_times,
-        timprs=np.linspace(0, np.sum(mf.dis.perlen.array), num=n_print_times),
-    )
-    adv = flopy.mt3d.Mt3dAdv(model=mt, mixelm=3, mxpart=8_000_000)
-    dsp = flopy.mt3d.Mt3dDsp(model=mt, al=0.1, dmcoef=0, dmcoef2=0, trpt=0.1, trpv=0.01)
-    rct = flopy.mt3d.Mt3dRct(
-        model=mt,
-        isothm=1,
-        rhob=1800,
-        igetsc=0,
-        srconc=0,
-        srconc2=0,
-        sp1=Kd_cyanide,
-        sp12=Kd_PAH,
-        sp2=0,
-        sp22=0,
-        rc1=0,
-        rc12=0,
-        rc2=0,
-        rc22=0,
-    )
-    ssm = flopy.mt3d.Mt3dSsm(model=mt, crch=0, crch2=0)
-
-    gcg = flopy.mt3d.Mt3dGcg(model=mt)
-
-    for f in model_workspace.glob("MT3D*.UCN"):
-        f.unlink()
-    for f in model_workspace.glob("MT3D*.MAS"):
-        f.unlink()
-
-    mt.write_input()
-    mt.run_model()
-    return mt
-
+# Local utility functions and definitions
+from plot_tools import plot_model
+from run_tools import run_flow_model, run_transport
+from utils import StressPeriod
 
 # Name and location
 modelname = "Griftpark"
@@ -275,9 +29,9 @@ kv_park = np.repeat([1, 2, 8, 4, 10 / 100, 5], n_sublayers)
 kv_buiten = np.repeat([0.1, 2, 8, 4, 10 / 2000, 5], n_sublayers)
 
 x_zones = [136600, 137000, 137090, 137350, 137450, 138000]
-ncol_zones = [8, 9, 52, 10, 11]
+ncol_zones = [8, 9, 26, 10, 11]
 y_zones = [455600, 456550, 456670, 457170, 457250, 458200]
-nrow_zones = [19, 12, 100, 8, 19]
+nrow_zones = [19, 12, 50, 8, 19]
 
 model_extent = np.array(
     [(min(x_zones), min(y_zones)), (max(x_zones), max(y_zones))],
@@ -324,11 +78,6 @@ stress_periods = [
         period_length=30 * 365, n_steps=1, step_multiplier=1, steady_state=True
     )
 ]
-
-with fiona.open("data/h1.shp") as isohead:
-    contours_h1 = [f for f in isohead.filter(bbox=tuple(model_extent.view(np.float)))]
-with fiona.open("data/h2.shp") as isohead:
-    contours_h2 = [f for f in isohead.filter(bbox=tuple(model_extent.view(np.float)))]
 
 with fiona.open("data/aquifers.shp") as src:
     aquifers = list(src)
@@ -378,7 +127,33 @@ for r, c in zip(wall_mask_row, wall_mask_col):
         for l in range(sum(wvp == 1)):
             hfb_data.append([l, r, c, r + 1, c, hfb_conductance])
 
-mf = run_flow_model()
+model_config = {
+    "layers": {
+        "boundaries": layer_boundaries,
+        "n_sublayers": n_sublayers,
+        "aquifer": wvp,
+    },
+    "grid": {
+        "extent": model_extent,
+        "col_width": col_width,
+        "row_height": row_height,
+        "x": x,
+        "y": y,
+    },
+    "time": {"startjaar": startjaar, "stress_periods": stress_periods},
+    "flow": {
+        "ibound": ibounds,
+        "const_heads": const_heads,
+        "generator": {"active": False, "seed": seed},
+        "k_h": {"regional": kh_buiten, "park": kh_park},
+        "k_v": {"regional": kv_buiten, "park": kv_park},
+    },
+    "wall": {"inside_wall": inside_wall, "hfb_data": hfb_data},
+    "wells": wells,
+    "recharge": nov,
+}
+
+mf = run_flow_model(modelname, model_workspace, model_config)
 
 init_conc_PAH = np.zeros((mf.dis.nlay, mf.dis.nrow, mf.dis.ncol), dtype=np.float)
 init_conc_cyanide = np.zeros((mf.dis.nlay, mf.dis.nrow, mf.dis.ncol), dtype=np.float)
@@ -439,7 +214,10 @@ with fiona.open("data/PAK/PAK_15_23.shp") as src:
             for l in range(l_top, l_bottom + 1):
                 init_conc_PAH[l, r, c] = 1
 
+model_config["transport"] = {
+    "initial_conc": {"cyanide": init_conc_cyanide, "PAH": init_conc_PAH}
+}
 
-mt = run_transport(mf)
+mt = run_transport(mf, model_config)
 
 plot_model(mf, mt, model_output_dir)
