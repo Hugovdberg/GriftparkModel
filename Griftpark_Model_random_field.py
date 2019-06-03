@@ -9,7 +9,7 @@ import pandas as pd
 import scipy.ndimage as si  # Numpy array manipulation
 
 # Local utility functions and definitions
-from plot_tools import plot_model
+from plot_tools import plot_model, xs_lines
 from run_tools import run_flow_model, run_transport
 from utils import StressPeriod
 
@@ -158,7 +158,7 @@ model_config = {
         "k_v": {"regional": kv_buiten, "park": kv_park},
     },
     "wall": {"inside_wall": inside_wall, "hfb_data": hfb_data},
-    "wells": wells,
+    "wells": {"locations": wells, "discharge": -10 * 24 / len(wells)},
     "recharge": nov,
 }
 
@@ -255,17 +255,10 @@ for ilay in range(mf.dis.nlay):
     fig.savefig(model_output_dir / f"horizontal_conductivity_{ilay}.png")
     plt.close(fig)
 
-xs_lines = {
-    "A-A'": [[137215, 457200], [137215, 456600]],
-    "B-B'": [[137000, 457075], [137375, 457075]],
-    "C-C'": [[137050, 456800], [137375, 456800]],
-}
 for line_title, xs_line in xs_lines.items():
     fig, ax = plt.subplots(figsize=(16, 8))
     ax.set_title(f"Horizontal conductivity on transect {line_title}")
-    pxs = flopy.plot.PlotCrossSection(
-        model=mf, ax=ax, line={"line": xs_line}  # , extent=(600, 800, -80, 0)
-    )
+    pxs = flopy.plot.PlotCrossSection(model=mf, ax=ax, line=xs_line)
     pxs.plot_grid(linewidths=0.5, alpha=0.5)
     c = pxs.plot_array(np.log10(kh_field), vmin=-abs_max, vmax=abs_max)
     plt.colorbar(c, ax=ax)

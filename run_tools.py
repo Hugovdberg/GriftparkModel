@@ -26,7 +26,7 @@ def run_flow_model(modelname, model_workspace, model_config):
     kv_park = model_config["flow"]["k_v"]["park"]
     inside_wall = model_config["wall"]["inside_wall"]
     hfb_data = model_config["wall"]["hfb_data"]
-    wells = model_config["wells"]
+    wells = model_config["wells"]["locations"]
     nov = model_config["recharge"]
     # Extract tops and bottoms from the layer boundaries (defined outside
     # function), and interpolate layers to sublayers for random field generation.
@@ -161,7 +161,7 @@ def run_flow_model(modelname, model_workspace, model_config):
     flopy.modflow.ModflowHfb(model=mf, nphfb=0, nacthfb=0, hfb_data=hfb_data)
 
     welldata = flopy.modflow.ModflowWel.get_empty(ncells=len(wells) * dis.nlay)
-    wellflux = -10 * 24 / len(wells)
+    wellflux = model_config["wells"]["discharge"]
     w = 0
     z_top = -21
     z_bot = -43

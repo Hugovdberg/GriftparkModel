@@ -1,15 +1,17 @@
 # Importing packages
 from pathlib import Path  # Filepath maniputlation
 
+import flopy
 import fiona
 import gstools  # GeoStat-tools
 import matplotlib.path as mpth
+import matplotlib.pyplot as plt
 import numpy as np  # Numeric array manipulation
 import pandas as pd
 import scipy.ndimage as si  # Numpy array manipulation
 
 # Local utility functions and definitions
-from plot_tools import plot_model
+from plot_tools import plot_model, xs_lines
 from run_tools import run_flow_model, run_transport
 from utils import StressPeriod
 
@@ -29,9 +31,9 @@ kv_park = np.repeat([1, 2, 8, 4, 10 / 100, 5], n_sublayers)
 kv_buiten = np.repeat([0.1, 2, 8, 4, 10 / 2000, 5], n_sublayers)
 
 x_zones = [136600, 137000, 137090, 137350, 137450, 138000]
-ncol_zones = [8, 9, 26, 10, 11]
+ncol_zones = [8, 9, 52, 10, 11]
 y_zones = [455600, 456550, 456670, 457170, 457250, 458200]
-nrow_zones = [19, 12, 50, 8, 19]
+nrow_zones = [19, 12, 100, 8, 19]
 
 model_extent = np.array(
     [(min(x_zones), min(y_zones)), (max(x_zones), max(y_zones))],
@@ -149,7 +151,7 @@ model_config = {
         "k_v": {"regional": kv_buiten, "park": kv_park},
     },
     "wall": {"inside_wall": inside_wall, "hfb_data": hfb_data},
-    "wells": wells,
+    "wells": {"locations": wells, "discharge": -10 * 24 / len(wells)},
     "recharge": nov,
 }
 
@@ -221,3 +223,58 @@ model_config["transport"] = {
 mt = run_transport(mf, model_config)
 
 plot_model(mf, mt, model_output_dir)
+
+hds_file = flopy.utils.HeadFile(model_workspace / f"{modelname}.hds")
+heads = hds_file.get_data()
+
+cbc_file = flopy.utils.CellBudgetFile(model_workspace / f"{modelname}.cbc")
+frf = cbc_file.get_data(text="FLOW RIGHT FACE")[0]
+fff = cbc_file.get_data(text="FLOW FRONT FACE")[0]
+flf = cbc_file.get_data(text="FLOW LOWER FACE")[0]
+xs_lines_full = {
+    "A-A'": {
+        "line": {
+            "column": mf.dis.get_rc_from_node_coordinates(
+                *xs_lines["A-A'"][0], local=False
+            )[1]
+        },
+        "extent": (1000, 1600, -100, 2.5),
+    },
+    "B-B'": {
+        "line": {
+            "row": mf.dis.get_rc_from_node_coordinates(
+                *xs_lines["B-B'"][0], local=False
+            )[0]
+        },
+        "extent": (400, 780, -100, 2.5),
+    },
+    "C-C'": {
+        "line": {
+            "row": mf.dis.get_rc_from_node_coordinates(
+                *xs_lines["C-C'"][0], local=False
+            )[0]
+        },
+        "extent": (450, 780, -100, 2.5),
+    },
+}
+for line_title, xs_line in xs_lines_full.items():
+    fig, ax = plt.subplots(figsize=(16, 8))
+    ax.set_title(f"Head and flow vectors on transect {line_title}")
+    pxs = flopy.plot.PlotCrossSection(model=mf, ax=ax, **xs_line)
+    pxs.plot_grid(linewidths=0.5, alpha=0.5)
+    c = pxs.plot_array(heads, head=heads, masked_values=[-999.99])
+    plt.colorbar(c, ax=ax)
+    pxs.plot_bc("WEL")
+    pxs.plot_discharge(
+        frf=frf,
+        fff=fff,
+        flf=flf,
+        head=heads,
+        color="#ffffff",
+        normalize=True,
+        hstep=1,
+        kstep=1,
+    )
+    fig.tight_layout()
+    fig.savefig(model_output_dir / f"crosssection_flows_{line_title[0]}.png")
+    plt.close(fig)

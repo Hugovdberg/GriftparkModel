@@ -4,6 +4,12 @@ import matplotlib.pyplot as plt
 import fiona
 import fiona.crs
 
+xs_lines = {
+    "A-A'": {"line": [[137215, 457200], [137215, 456600]]},
+    "B-B'": {"line": [[137000, 457075], [137375, 457075]]},
+    "C-C'": {"line": [[137050, 456800], [137375, 456800]]},
+}
+
 
 def plot_model(mf, mt, model_output_dir):
     modelname = mf.name
@@ -81,11 +87,6 @@ def plot_model(mf, mt, model_output_dir):
             )
             plt.close(fig)
 
-    xs_lines = {
-        "A-A'": [[137215, 457200], [137215, 456600]],
-        "B-B'": [[137000, 457075], [137375, 457075]],
-        "C-C'": [[137050, 456800], [137375, 456800]],
-    }
     for icomp, comp in enumerate([conc1, conc2]):
         for line_title, xs_line in xs_lines.items():
             comp_name = mt.btn.species_names[icomp]
@@ -98,12 +99,8 @@ def plot_model(mf, mt, model_output_dir):
             # row=72, column=51
             # xs_line = wells
             # xs_line = [[137215, 457200], [137215, 456600]]
-            pxs = flopy.plot.PlotCrossSection(
-                model=mf, ax=ax, line={"line": xs_line}  # , extent=(600, 800, -80, 0)
-            )
-            pxs2 = flopy.plot.PlotCrossSection(
-                model=mf, ax=ax2, line={"line": xs_line}  # , extent=(600, 800, -80, 0)
-            )
+            pxs = flopy.plot.PlotCrossSection(model=mf, ax=ax, line=xs_line)
+            pxs2 = flopy.plot.PlotCrossSection(model=mf, ax=ax2, line=xs_line)
             pxs.plot_grid(linewidths=0.5, alpha=0.5)
             pxs2.plot_grid(linewidths=0.5, alpha=0.5)
             c = pxs.plot_array(
@@ -131,17 +128,17 @@ def plot_model(mf, mt, model_output_dir):
             )
             plt.close(fig)
 
-    with fiona.open(
-        model_output_dir / "crosssections.shp",
-        "w",
-        driver="ESRI Shapefile",
-        crs=fiona.crs.from_epsg(28992),
-        schema={"geometry": "LineString", "properties": {"title": "str"}},
-    ) as writer:
-        for line_title, xs_line in xs_lines.items():
-            writer.write(
-                {
-                    "geometry": {"type": "LineString", "coordinates": xs_line},
-                    "properties": {"title": line_title},
-                }
-            )
+    # with fiona.open(
+    #     model_output_dir / "crosssections.shp",
+    #     "w",
+    #     driver="ESRI Shapefile",
+    #     crs=fiona.crs.from_epsg(28992),
+    #     schema={"geometry": "LineString", "properties": {"title": "str"}},
+    # ) as writer:
+    #     for line_title, xs_line in xs_lines.items():
+    #         writer.write(
+    #             {
+    #                 "geometry": {"type": "LineString", "coordinates": xs_line},
+    #                 "properties": {"title": line_title},
+    #             }
+    #         )
