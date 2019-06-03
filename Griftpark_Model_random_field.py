@@ -254,3 +254,23 @@ for ilay in range(mf.dis.nlay):
     fig.tight_layout()
     fig.savefig(model_output_dir / f"horizontal_conductivity_{ilay}.png")
     plt.close(fig)
+
+xs_lines = {
+    "A-A'": [[137215, 457200], [137215, 456600]],
+    "B-B'": [[137000, 457075], [137375, 457075]],
+    "C-C'": [[137050, 456800], [137375, 456800]],
+}
+for line_title, xs_line in xs_lines.items():
+    fig, ax = plt.subplots(figsize=(16, 8))
+    ax.set_title(f"Horizontal conductivity on transect {line_title}")
+    pxs = flopy.plot.PlotCrossSection(
+        model=mf, ax=ax, line={"line": xs_line}  # , extent=(600, 800, -80, 0)
+    )
+    pxs.plot_grid(linewidths=0.5, alpha=0.5)
+    c = pxs.plot_array(np.log10(kh_field), vmin=-abs_max, vmax=abs_max)
+    plt.colorbar(c, ax=ax)
+    fig.tight_layout()
+    fig.savefig(
+        model_output_dir / f"crosssection_horizontal_conductivity_{line_title[0]}.png"
+    )
+    plt.close(fig)
