@@ -8,8 +8,8 @@ bin/win32/
 bin/win64/
 
 backup/
-Griftpark*/
+# Griftpark*/
 reports/
-output/
+# output/
 
 *.qgs~

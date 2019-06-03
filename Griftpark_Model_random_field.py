@@ -242,7 +242,7 @@ for ilay in range(mf.dis.nlay):
     ax.set_title(f"Log hydraulic conductivity in layer {ilay+1}")
     ax.set_aspect("equal")
     extent = None
-    # extent = [137000, 137400, 456525, 457325]  # Wall
+    extent = [137000, 137400, 456525, 457325]  # Wall
     pmv = flopy.plot.PlotMapView(model=mf, ax=ax, layer=ilay, extent=extent)
     c = pmv.plot_array(np.log10(kh_field), vmin=-abs_max, vmax=abs_max)
     plt.colorbar(c)
